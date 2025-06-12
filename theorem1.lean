@@ -58,8 +58,7 @@ lemma F_rank : Module.finrank ℝ (⊤: Submodule ℝ (F → ℝ)) = #F := by
   simp only [finrank_top]
   have h:= finrank_pi { x // x ∈ F }
   rw [← Fintype.card_coe F]
-  --exact h
-  sorry
+  exact h
 
 
 noncomputable def S_bar_set :=
