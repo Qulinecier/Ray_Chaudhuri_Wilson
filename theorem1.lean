@@ -43,7 +43,7 @@ def subset_intersection_indicator (A: Finset α) (μ : ℕ): F → ℝ :=
 variable (r: ℕ)
 
 --TODO
-lemma indicator_eq: subset_intersection_indicator F s A r =
+lemma indicator_eq (A: Finset α): subset_intersection_indicator F s A r =
     ∑ (l: L), (Nat.choose l r) * (Nat.choose (#A - l) (s - r))
     * (intersection_indicator F A l) := by
   unfold subset_intersection_indicator
