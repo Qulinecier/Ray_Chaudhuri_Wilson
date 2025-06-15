@@ -64,7 +64,7 @@ lemma indicator_eq (A : Finset α): subset_intersection_indicator F s A r =
 
 variable (S: X.powerset)
 
-/--The set of indicator vectors {S_bar : S ∈ 𝓟ₛ(X)}-/
+/--The set of indicator vectors {S_bar : S ∈ 𝓟ₛ(X)} test -/
 noncomputable def subset_indicator_set :=
   Finset.image (fun (S : Finset α) => (subset_indicator F S: F → ℝ)) (powersetCard s X)
 
