@@ -1,5 +1,2 @@
-_build/
-/build
-/lean_packages/*
-!/lean_packages/manifest.json
-/.lake/
+lake-manifest.json
+lean-toolchain
