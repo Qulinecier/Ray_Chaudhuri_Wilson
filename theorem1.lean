@@ -11,8 +11,6 @@ import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.Data.Fintype.Defs
 
 
-
-
 open Finset
 variable {α : Type} (n : ℕ) [DecidableEq α]
 variable {X: Finset α} (F: Finset X.powerset)
