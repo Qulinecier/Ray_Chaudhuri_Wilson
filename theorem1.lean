@@ -14,7 +14,6 @@ import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 
 
 
-
 open Finset
 variable {α : Type} (n : ℕ) [DecidableEq α]
 variable {X: Finset α} (F: Finset X.powerset)
@@ -25,7 +24,6 @@ def intersecting {X: Finset α} (F: Finset X.powerset) (L : Set ℕ) :=
   ∀ (A B: F), #(A.val.val ∩ B.val.val) ∈ L
 
 variable (k s: ℕ) (L : Finset ℕ)
-
 
 
 instance: Module ℝ (F → ℝ) := by infer_instance
@@ -75,15 +73,16 @@ lemma indicator_eq: subset_intersection_indicator F s A r =
 
 variable (S: X.powerset)
 
+
 /--The set of indicator vectors {S_bar : S ∈ 𝓟ₛ(X)}-/
 noncomputable def subset_indicator_set :=
   Finset.image (fun (S : Finset α) => (subset_indicator F S: F → ℝ)) (powersetCard s X)
 
 
-
 theorem my_finrank_pi (ι : Type) [Fintype ι]:
     Module.finrank ℝ (ι → ℝ) = Fintype.card ι := by
   simp [Module.finrank]
+
 
 lemma F_rank {α : Type} {X : Finset α} (F : Finset { x // x ∈ X.powerset }):
     Module.finrank ℝ (⊤: Submodule ℝ (F → ℝ)) = #F := by
@@ -105,6 +104,7 @@ lemma subset_indicator_rank (hX : #X = n): #(subset_indicator_set F s)
 
 #check rank_span_finset_le
 
+
 lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_set F s)) = (⊤: Submodule ℝ (F → ℝ)))
   (hX : #X = n) : #F ≤ Nat.choose n s := by
   have h1 : Module.finrank ℝ (Submodule.span ℝ (toSet (subset_indicator_set F s)))
@@ -121,6 +121,7 @@ lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_
   rw [h1] at h3
   exact Nat.le_trans h3 h2
 
+<<<<<<< HEAD
 def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a<b
 instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLt
 instance: IsTrans ℕ sort_fun where
@@ -146,11 +147,11 @@ lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
   rw [isUnit_iff_exists]
   sorry
 
+=======
+>>>>>>> e1f2a8d4a76d98de7a6933646fab65bce1a6f068
 
 theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
     = (⊤: Submodule ℝ (F → ℝ)) := sorry
-
-
 
 
 theorem Ray_Chaudhuri_Wilson (huniform: uniform F k) (hintersect : intersecting F L)
