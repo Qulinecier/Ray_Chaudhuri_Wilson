@@ -9,6 +9,10 @@ import Mathlib.LinearAlgebra.Span.Defs
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.Data.Fintype.Defs
+import Mathlib.Data.Finset.Sort
+import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
+
+
 
 
 open Finset
@@ -38,7 +42,7 @@ def intersection_indicator (S: Finset α) (μ : ℕ): F → ℝ :=
 def subset_intersection_indicator (A: Finset α) (μ : ℕ): F → ℝ :=
     fun B => ∑ (S: powersetCard s X), if #(A ∩ S)  = μ then (subset_indicator F S B) else 0
 
-variable (r: ℕ)
+variable (r: ℕ) (A: Finset α)
 
 --TODO
 lemma indicator_eq: subset_intersection_indicator F s A r =
@@ -48,17 +52,26 @@ lemma indicator_eq: subset_intersection_indicator F s A r =
   funext B
   simp only [Finset.sum_apply]
   unfold subset_indicator
-  unfold intersection_indicator
   simp only [Pi.natCast_def, Pi.mul_apply, mul_ite, mul_one, mul_zero]
 
   have h1: (∑ (S: powersetCard s X), if #(A ∩ S) = r then (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0)
-    = ∑ (x : L), (∑ (S: powersetCard s X),
-    if (#(S ∩ (B: Finset α)) = x) then (if #(A ∩ S) = r then
-    (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0) else 0) := by sorry
+    = ∑ (x : L), ∑ (S: powersetCard s X),
+    if ((#(A ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
+    then (intersection_indicator F A x B) else 0 := by sorry
 
   rw [h1]
-  sorry
 
+  have h2: ∀ (x : L), (∑ (S: powersetCard s X),
+    if ((#(A ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α))) then (intersection_indicator F A x B) else 0) =
+    (Nat.choose x r) * (Nat.choose (#A - x) (s - r))
+    * (intersection_indicator F A x) B := by
+
+    intro x
+    sorry
+
+  congr! with x hx
+
+  rw [h2 x]
 
 variable (S: X.powerset)
 
@@ -108,6 +121,32 @@ lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_
   rw [h1] at h3
   exact Nat.le_trans h3 h2
 
+def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a<b
+instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLt
+instance: IsTrans ℕ sort_fun where
+  trans := fun
+    | .zero => sorry
+    | .succ n => sorry
+
+instance: IsAntisymm ℕ sort_fun := sorry
+
+instance: IsTotal ℕ sort_fun:= sorry
+
+variable (hL: (Finset.sort sort_fun L).length = s)
+
+
+
+def v_r (t: ℕ) (ht : t < s) := (Nat.choose (Finset.sort sort_fun L)[t] r)
+    * (Nat.choose (k - (Finset.sort sort_fun L)[t])) (s - r)
+
+
+def composed_mat : Matrix (Fin (s)) (Fin (s)) ℝ := fun i j => v_r k s L j hL i i.isLt
+
+lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
+  rw [isUnit_iff_exists]
+  sorry
+
+
 theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
     = (⊤: Submodule ℝ (F → ℝ)) := sorry
 
@@ -115,4 +154,6 @@ theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
 
 
 theorem Ray_Chaudhuri_Wilson (huniform: uniform F k) (hintersect : intersecting F L)
-    (hL : #L = s): #F ≤ Nat.choose n s := by sorry
+    (hL : #L = s): #F ≤ Nat.choose n s := by
+  apply subset_vector_span_dim_le
+  sorry
