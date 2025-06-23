@@ -20,8 +20,11 @@ variable {X: Finset α} (F: Finset X.powerset)
 
 def uniform {X: Finset α} (F: Finset X.powerset) (k : ℕ) : Prop := ∀ (A : F), #A.val.val = k
 
+--PETER : Intersecting does not contain A ∩ A, so we should state that
 def intersecting {X: Finset α} (F: Finset X.powerset) (L : Set ℕ) :=
-  ∀ (A B: F), #(A.val.val ∩ B.val.val) ∈ L
+  ∀ (A B: F), A ≠ B → #(A.val.val ∩ B.val.val) ∈ L
+
+
 
 variable (k s: ℕ) (L : Finset ℕ)
 
@@ -121,7 +124,6 @@ lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_
   rw [h1] at h3
   exact Nat.le_trans h3 h2
 
-<<<<<<< HEAD
 def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a<b
 instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLt
 instance: IsTrans ℕ sort_fun where
@@ -136,6 +138,79 @@ instance: IsTotal ℕ sort_fun:= sorry
 variable (hL: (Finset.sort sort_fun L).length = s)
 
 
+namespace Frankl_Wilson
+
+/-The characteristic vector of a set A.-/
+def char_vec (A : F) : X → ℝ :=
+    fun a => if a.val ∈ A.val.val then 1 else 0
+
+lemma char_vec_spec (A B : F) : (char_vec F A) ⬝ᵥ (char_vec F B) = #(A.val.val ∩ B.val.val) := by
+  have h : char_vec F A ⬝ᵥ char_vec F B =
+      ∑ a : X, if a.val ∈ A.val.val ∩ B.val.val then 1 else 0 := by
+    simp only [(· ⬝ᵥ ·)]
+    refine congrArg univ.sum ?_
+    unfold char_vec
+    aesop
+  rw [h]
+  simp only [sum_boole, Nat.cast_inj]
+  suffices {x | x ∈ A.val.val ∩ B.val.val} = A.val.val ∩ B.val.val by
+    refine card_nbij (·.val) (fun a ↦ ?_) ?_ ?_
+    · intro ha
+      simp only [univ_eq_attach, mem_filter, mem_attach, true_and] at ha ⊢
+      exact ha
+    · intro x1 hx1 x2 hx2 hf
+      aesop
+    · intro y hy
+      have hmem : y ∈ X := by
+        simp only [coe_inter, Set.mem_inter_iff, mem_coe] at hy
+        have hA := A.val.property
+        rw [@mem_powerset] at hA
+        exact hA hy.left
+      use ⟨y, hmem⟩
+      simp only [univ_eq_attach, coe_filter, mem_attach, true_and, Set.mem_setOf_eq, and_true]
+      exact hy
+  ext a
+  simp
+
+noncomputable def char_pol (A : F) (x : X → ℝ): ℝ :=
+  ∏ l ∈ L with l < #A.val.val, ((char_vec F A) ⬝ᵥ x - l)
+
+lemma char_pol_spec_1 (A : F) : char_pol F L A (char_vec F A) ≠ 0 := by
+  unfold char_pol
+  refine prod_ne_zero_iff.mpr ?_
+  intro a ha
+  rw [char_vec_spec]
+  norm_cast
+  rw [inter_self, Int.subNat_eq_zero_iff]
+  rw [@mem_filter] at ha
+  exact Nat.ne_of_lt' ha.2
+
+lemma char_pol_spec_2 (A B: F) (hneq : A ≠ B) (hAB : #B.val.val ≤ #A.val.val)
+    (hintersect : intersecting F L): char_pol F L A (char_vec F B) = 0 := by
+  unfold char_pol
+  unfold intersecting at hintersect
+  refine prod_eq_zero_iff.mpr ?_
+  use #(A.val.val ∩ B.val.val)
+  rw [char_vec_spec, sub_self, propext (and_iff_left rfl), mem_filter]
+  constructor
+  · exact hintersect A B hneq
+  · refine card_lt_card ?_
+    rw [@Finset.ssubset_iff_subset_ne]
+    constructor
+    · exact inter_subset_left
+    · rw [ne_eq, inter_eq_left]
+      by_contra hcon
+      have h := eq_of_subset_of_card_le hcon hAB
+      simp only [@SetCoe.ext_iff] at h
+      exact hneq h
+
+instance: Module ℝ ( (X → ({0, 1} : Set ℝ)) → ℝ) := by infer_instance
+
+theorem Frankl_Wilson (hintersect : intersecting F L):
+    #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by sorry
+
+end Frankl_Wilson
+
 
 def v_r (t: ℕ) (ht : t < s) := (Nat.choose (Finset.sort sort_fun L)[t] r)
     * (Nat.choose (k - (Finset.sort sort_fun L)[t])) (s - r)
@@ -147,8 +222,6 @@ lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
   rw [isUnit_iff_exists]
   sorry
 
-=======
->>>>>>> e1f2a8d4a76d98de7a6933646fab65bce1a6f068
 
 theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
     = (⊤: Submodule ℝ (F → ℝ)) := sorry
