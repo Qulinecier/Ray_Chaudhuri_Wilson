@@ -40,28 +40,70 @@ def intersection_indicator (S: Finset α) (μ : ℕ): F → ℝ :=
 def subset_intersection_indicator (A: Finset α) (μ : ℕ): F → ℝ :=
     fun B => ∑ (S: powersetCard s X), if #(A ∩ S)  = μ then (subset_indicator F S B) else 0
 
-variable (r: ℕ) (A: Finset α)
+
+
+
+variable (r: ℕ)
+variable (A : F)
 
 --TODO
-lemma indicator_eq: subset_intersection_indicator F s A r =
-    ∑ (l: L), (Nat.choose l r) * (Nat.choose (#A - l) (s - r))
+lemma indicator_eq (hintersect : intersecting F L):
+    subset_intersection_indicator F s A r =
+    ∑ (l∈ L), (Nat.choose l r) * (Nat.choose (#A.val.val - l) (s - r))
     * (intersection_indicator F A l) := by
   unfold subset_intersection_indicator
   funext B
   simp only [Finset.sum_apply]
   unfold subset_indicator
   simp only [Pi.natCast_def, Pi.mul_apply, mul_ite, mul_one, mul_zero]
+  unfold intersecting at hintersect
+  have hAB := hintersect A B
 
-  have h1: (∑ (S: powersetCard s X), if #(A ∩ S) = r then (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0)
-    = ∑ (x : L), ∑ (S: powersetCard s X),
-    if ((#(A ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
-    then (intersection_indicator F A x B) else 0 := by sorry
+  have h1: (∑ (S: powersetCard s X), if #(A.val.val ∩ S) = r then
+      (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0)
+    = ∑ (x ∈  L), ∑ (S: powersetCard s X),
+    if ((#(A.val.val ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
+    then (intersection_indicator F A x B) else 0 := by
+    unfold intersection_indicator
+    let p := ∑ (S: powersetCard s X), if #(A.val.val ∩ S) = r then
+        (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0
+    have h : p = ∑ x ∈  L, if #(A.val.val ∩ B.val.val) = x then p else 0 := by
+      let f := fun x => if #(A.val.val ∩ B.val.val) = x then p else 0
+      have h₀ : ∀ b ∈ L, b ≠ #(A.val.val ∩ B.val.val) → f b = 0 := fun b a a ↦ if_neg (id (Ne.symm a))
+      have h₁ : #(A.val.val ∩ B.val.val) ∉ L → f (#(A.val.val ∩ B.val.val)) = 0 := by
+        intro h
+        exfalso
+        exact h hAB
+      rw [Finset.sum_eq_single (#(A.val.val ∩ B.val.val)) h₀ h₁]
+      exact (if_pos rfl).symm
+    unfold p at h
+    rw [h]
+    congr! with x hx
+
+
+    /-
+    variable {α : Type*} [DecidableEq α]
+    variables (P Q : Prop) [Decidable P] [Decidable Q]
+    variables {a b : ℝ}
+
+    example (h : b = 0) :
+      (if P then if Q then a else b else b) = if P ∧ Q then a else b := by
+      by_cases hp : P
+      · simp [hp]
+      · simp [hp, h]
+    -/
+
+
+
+
+    sorry
 
   rw [h1]
 
   have h2: ∀ (x : L), (∑ (S: powersetCard s X),
-    if ((#(A ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α))) then (intersection_indicator F A x B) else 0) =
-    (Nat.choose x r) * (Nat.choose (#A - x) (s - r))
+    if ((#(A.val.val ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
+    then (intersection_indicator F A x B) else 0) =
+    (Nat.choose x r) * (Nat.choose (#A.val.val - x) (s - r))
     * (intersection_indicator F A x) B := by
 
     intro x
@@ -69,20 +111,17 @@ lemma indicator_eq: subset_intersection_indicator F s A r =
 
   congr! with x hx
 
-  rw [h2 x]
+  rw [h2 ⟨x, hx⟩]
 
 variable (S: X.powerset)
-
 
 /--The set of indicator vectors {S_bar : S ∈ 𝓟ₛ(X)}-/
 noncomputable def subset_indicator_set :=
   Finset.image (fun (S : Finset α) => (subset_indicator F S: F → ℝ)) (powersetCard s X)
 
-
 theorem my_finrank_pi (ι : Type) [Fintype ι]:
     Module.finrank ℝ (ι → ℝ) = Fintype.card ι := by
   simp [Module.finrank]
-
 
 lemma F_rank {α : Type} {X : Finset α} (F : Finset { x // x ∈ X.powerset }):
     Module.finrank ℝ (⊤: Submodule ℝ (F → ℝ)) = #F := by
@@ -104,7 +143,6 @@ lemma subset_indicator_rank (hX : #X = n): #(subset_indicator_set F s)
 
 #check rank_span_finset_le
 
-
 lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_set F s)) = (⊤: Submodule ℝ (F → ℝ)))
   (hX : #X = n) : #F ≤ Nat.choose n s := by
   have h1 : Module.finrank ℝ (Submodule.span ℝ (toSet (subset_indicator_set F s)))
@@ -121,7 +159,6 @@ lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_
   rw [h1] at h3
   exact Nat.le_trans h3 h2
 
-<<<<<<< HEAD
 def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a<b
 instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLt
 instance: IsTrans ℕ sort_fun where
@@ -147,14 +184,13 @@ lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
   rw [isUnit_iff_exists]
   sorry
 
-=======
->>>>>>> e1f2a8d4a76d98de7a6933646fab65bce1a6f068
 
 theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
     = (⊤: Submodule ℝ (F → ℝ)) := sorry
 
 
-theorem Ray_Chaudhuri_Wilson (huniform: uniform F k) (hintersect : intersecting F L)
+theorem Ray_Chaudhuri_Wilson (hX: #X = n) (huniform: uniform F k) (hintersect : intersecting F L)
     (hL : #L = s): #F ≤ Nat.choose n s := by
-  apply subset_vector_span_dim_le
-  sorry
+  apply subset_vector_span_dim_le n F s
+  · sorry
+  · exact hX
