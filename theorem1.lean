@@ -25,7 +25,6 @@ def intersecting {X: Finset α} (F: Finset X.powerset) (L : Set ℕ) :=
 
 variable (k s: ℕ) (L : Finset ℕ)
 
-
 instance: Module ℝ (F → ℝ) := by infer_instance
 
 /--The indicator vector of subset S: S = ∑(A: A ∈ F, S ⊆ A).-/
@@ -38,18 +37,132 @@ def intersection_indicator (S: Finset α) (μ : ℕ): F → ℝ :=
 
 /--The indicator combine both subset and intersection, i.e. G = ∑(S_bar: S∈ 𝓟ₛ(X), |S∩A| = μ)-/
 def subset_intersection_indicator (A: Finset α) (μ : ℕ): F → ℝ :=
-    fun B => ∑ (S: powersetCard s X), if #(A ∩ S)  = μ then (subset_indicator F S B) else 0
-
-
-
+    fun B => ∑ S ∈ powersetCard s X, if #(A ∩ S)  = μ then (subset_indicator F S B) else 0
 
 variable (r: ℕ)
-variable (A : F)
+variable (A B : F)
 
---TODO
-lemma indicator_eq (hintersect : intersecting F L):
+/--Projection map from S to (A∩S, (B\A)∩ S)-/
+def intersect_i: (a : Finset α) → a ∈ {S ∈ powersetCard s X | #(↑↑A ∩ S) = r ∧ S ⊆ ↑↑B}
+    → Finset α × Finset α :=
+  fun S ↦ fun _ ↦ ((A: Finset α) ∩ S, ((B: Finset α) \ (A: Finset α)) ∩ S)
+
+/--Reverse map from (S.1, S.2) to S.1 ∪ S.2-/
+def intersect_j: (a : Finset α × Finset α) →
+    a ∈ powersetCard r (↑↑A ∩ ↑↑B) ×ˢ powersetCard (s - r) (↑↑B \ ↑↑A) → Finset α :=
+  fun S ↦ fun _ ↦ S.1 ∪ S.2
+
+/--
+The cardinality of {S∈𝓟ₛ(X)| |A∩S|=r and S⊆B} is equal to the number of ways choosing r elements
+in A∩B and s-r elements in B\A.
+#{S∈𝓟ₛ(X)| |A∩S|=r and S⊆B} = #𝓟ᵣ(A∩B) × #𝓟ₛ₋ᵣ(B\A)
+-/
+lemma card_powerset_card_product (hrs : r ≤ s) : #{S ∈ powersetCard s X | #(A.val.val ∩ S) = r
+    ∧ (S: Finset α) ⊆ (B: Finset α)} = #((powersetCard r ((A: Finset α) ∩ (B: Finset α))) ×ˢ
+    (powersetCard (s-r) ((B: Finset α) \ (A: Finset α)))) :=by
+  apply Finset.card_bij' (intersect_i F s r A B) (intersect_j F s r A B)
+  · intro S hS
+    unfold intersect_i
+    unfold intersect_j
+    simp only
+    simp only [mem_filter, mem_powersetCard] at hS
+    cases' hS with hS1 hS3
+    cases' hS1 with hS1 hS2
+    cases' hS3 with hS3 hS4
+    rw [← union_inter_distrib_right]
+    simp only [union_sdiff_self_eq_union, inter_eq_right]
+    exact subset_trans hS4 subset_union_right
+  · intro S hS
+    unfold intersect_i
+    unfold intersect_j
+    simp only [mem_product, mem_powersetCard] at hS
+    cases' hS with hS1 hS3
+    cases' hS1 with hS1 hS2
+    cases' hS3 with hS3 hS4
+    rw [inter_union_distrib_left]
+    have hdisj : Disjoint (A: Finset α) S.2 := by
+      apply disjoint_of_subset_right hS3
+      exact disjoint_sdiff
+    rw [disjoint_iff_inter_eq_empty.mp hdisj, union_empty, inter_union_distrib_left,
+      inter_comm, inter_eq_left.mpr (subset_inter_iff.mp hS1).left]
+    have hdisj2 : Disjoint ((B: Finset α) \ (A:Finset α)) (A: Finset α) := by exact
+      sdiff_disjoint
+    have h1: ((B: Finset α) \ (A:Finset α)) ∩ S.1 ⊆
+        ((B: Finset α) \ (A:Finset α)) ∩ (A: Finset α) := by
+      exact inter_subset_inter_left (subset_inter_iff.mp hS1).left
+    rw [disjoint_iff_inter_eq_empty.mp hdisj2] at h1
+    rw [subset_empty.mp h1, empty_union, inter_eq_right.mpr hS3]
+  · intro S hS
+    unfold intersect_i
+    simp only [mem_product, mem_powersetCard, inter_subset_left, true_and]
+    simp only [mem_filter, mem_powersetCard] at hS
+    cases' hS with h1 h2
+    cases' h2 with h2 h3
+    cases' h1 with h1 h4
+    refine' ⟨⟨inter_subset_inter_left h3, h2⟩, ?_⟩
+    have h5: ((B: Finset α) \ (A: Finset α)) ∩ S = ((B: Finset α) ∩ S) \ ((A: Finset α) ∩ S) := by
+      ext x
+      simp only [mem_inter, mem_sdiff, not_and]
+      constructor
+      · intro hx
+        cases' hx with hx1 hx2
+        cases' hx1 with hx1 hx3
+        refine' ⟨⟨hx1, hx2⟩ , ?_⟩
+        intro hx4
+        exfalso
+        apply hx3
+        exact hx4
+      · intro hx
+        cases' hx with hx1 hx2
+        cases' hx1 with hx1 hx3
+        refine' ⟨⟨hx1, ?_⟩ , hx3⟩
+        by_contra hA
+        apply hx2
+        · exact hA
+        · exact hx3
+    rw [h5, inter_eq_right.mpr h3, card_sdiff, h4, h2]
+    exact inter_subset_right
+  · intro S hS
+    unfold intersect_j
+    simp only [mem_filter, mem_powersetCard]
+    simp only [mem_product, mem_powersetCard] at hS
+    cases' hS with h1 h3
+    cases' h1 with h1 h2
+    cases' h3 with h3 h4
+    refine' ⟨⟨?_, ?_⟩ , ⟨?_,
+      union_subset (subset_inter_iff.mp h1).right (Subset.trans h3 sdiff_subset)⟩⟩
+    · intro x hx
+      by_cases hxS: x ∈ S.1
+      · exact (mem_powerset.mp A.val.property) (mem_of_mem_filter x (h1 hxS))
+      · have h5: x ∈ S.2 :=by
+          rw [mem_union] at hx
+          cases' hx with hx1 hx2
+          · exfalso
+            apply hxS
+            exact hx1
+          · exact hx2
+        exact (mem_powerset.mp B.val.property) (mem_sdiff.mp (h3 h5)).left
+    · have h5: #(S.1 ∪ S.2) = #S.1 + #S.2 := by
+        rw [card_union_eq_card_add_card]
+        apply disjoint_of_subset_left h1
+        apply disjoint_of_subset_right h3
+        apply disjoint_of_subset_left (inter_subset_left)
+        exact disjoint_sdiff
+      rw [h5, h2, h4, Nat.add_sub_cancel' hrs]
+    · have hdisj: Disjoint (A: Finset α) S.2 := by
+        apply disjoint_of_subset_right h3
+        exact disjoint_sdiff
+      rw [inter_union_distrib_left, inter_comm, inter_eq_left.mpr (subset_inter_iff.mp h1).left,
+        disjoint_iff_inter_eq_empty.mp hdisj, union_empty]
+      exact h2
+
+/--
+∑(S_bar: S∈𝓟ₛ(X), |S∩A|=r) = ∑μ∈L, binom(μ, r) * binom(k-μ, s-r)* H,
+where H is the uniform intersection indicator
+-/
+lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L) (huniform: uniform F k) (hrs : r ≤ s):
     subset_intersection_indicator F s A r =
-    ∑ (l∈ L), (Nat.choose l r) * (Nat.choose (#A.val.val - l) (s - r))
+    ∑ (l∈ L), (Nat.choose l r) * (Nat.choose (k - l) (s - r))
     * (intersection_indicator F A l) := by
   unfold subset_intersection_indicator
   funext B
@@ -59,17 +172,18 @@ lemma indicator_eq (hintersect : intersecting F L):
   unfold intersecting at hintersect
   have hAB := hintersect A B
 
-  have h1: (∑ (S: powersetCard s X), if #(A.val.val ∩ S) = r then
+  have h1: (∑ S ∈ powersetCard s X, if #(A.val.val ∩ S) = r then
       (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0)
-    = ∑ (x ∈  L), ∑ (S: powersetCard s X),
+    = ∑ (x ∈  L), ∑ S ∈  powersetCard s X,
     if ((#(A.val.val ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
     then (intersection_indicator F A x B) else 0 := by
     unfold intersection_indicator
-    let p := ∑ (S: powersetCard s X), if #(A.val.val ∩ S) = r then
+    let p := ∑ S ∈ powersetCard s X, if #(A.val.val ∩ S) = r then
         (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0
     have h : p = ∑ x ∈  L, if #(A.val.val ∩ B.val.val) = x then p else 0 := by
       let f := fun x => if #(A.val.val ∩ B.val.val) = x then p else 0
-      have h₀ : ∀ b ∈ L, b ≠ #(A.val.val ∩ B.val.val) → f b = 0 := fun b a a ↦ if_neg (id (Ne.symm a))
+      have h₀ : ∀ b ∈ L, b ≠ #(A.val.val ∩ B.val.val) → f b = 0 :=
+        fun b a a ↦ if_neg (id (Ne.symm a))
       have h₁ : #(A.val.val ∩ B.val.val) ∉ L → f (#(A.val.val ∩ B.val.val)) = 0 := by
         intro h
         exfalso
@@ -79,39 +193,39 @@ lemma indicator_eq (hintersect : intersecting F L):
     unfold p at h
     rw [h]
     congr! with x hx
-
-
-    /-
-    variable {α : Type*} [DecidableEq α]
-    variables (P Q : Prop) [Decidable P] [Decidable Q]
-    variables {a b : ℝ}
-
-    example (h : b = 0) :
-      (if P then if Q then a else b else b) = if P ∧ Q then a else b := by
-      by_cases hp : P
-      · simp [hp]
-      · simp [hp, h]
-    -/
-
-
-
-
-    sorry
+    by_cases hP: #(A.val.val ∩ B.val.val) = x
+    · rw [if_pos hP, inter_comm, if_pos hP]
+      congr with S
+      by_cases hAS: #(A.val.val ∩ S) = r
+      · simp [hAS]
+      · simp [hAS]
+    · rw [if_neg hP, inter_comm, if_neg hP]
+      simp only [univ_eq_attach, ite_self, sum_const_zero]
 
   rw [h1]
 
-  have h2: ∀ (x : L), (∑ (S: powersetCard s X),
-    if ((#(A.val.val ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
-    then (intersection_indicator F A x B) else 0) =
-    (Nat.choose x r) * (Nat.choose (#A.val.val - x) (s - r))
-    * (intersection_indicator F A x) B := by
+  congr! with μ hμ
+  rw [(sum_filter (fun (S: Finset α) => (#(A.val.val ∩ S) = r)
+    ∧ ((S: Finset α) ⊆ (B: Finset α))) fun a ↦ (intersection_indicator F A μ B)).symm]
+  rw [sum_const]
+  simp only [nsmul_eq_mul]
+  unfold intersection_indicator
+  by_cases hinter: #(B.val.val ∩ A.val.val) = μ
+  · simp [hinter]
+    unfold uniform at huniform
+    have hB := huniform B
+    have hA := huniform A
+    --TODO
+    rw [card_powerset_card_product F s r A B hrs]
+    simp only [card_product, card_powersetCard, Nat.cast_mul]
+    rw [inter_comm, hinter]
+    have hdiff: (B: Finset α) \ (A: Finset α) = (B: Finset α) \ ((B: Finset α) ∩ (A: Finset α)) :=by
+      simp only [sdiff_inter_self_left]
+    rw [hdiff, card_sdiff, hB, hinter]
+    simp only [inter_subset_left]
+  · rw [if_neg hinter]
+    simp only [mul_zero]
 
-    intro x
-    sorry
-
-  congr! with x hx
-
-  rw [h2 ⟨x, hx⟩]
 
 variable (S: X.powerset)
 
@@ -187,7 +301,6 @@ lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
 
 theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
     = (⊤: Submodule ℝ (F → ℝ)) := sorry
-
 
 theorem Ray_Chaudhuri_Wilson (hX: #X = n) (huniform: uniform F k) (hintersect : intersecting F L)
     (hL : #L = s): #F ≤ Nat.choose n s := by
