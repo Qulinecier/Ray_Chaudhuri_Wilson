@@ -74,3 +74,12 @@ lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L) (huniform: 
     ∑ (l∈ L), (Nat.choose l r) * (Nat.choose (k - l) (s - r))
     * (intersection_indicator F A l)
 ```
+
+
+We want to show $\left\{\bar{S}: S \in \mathscr{P}_s(X)\right\}$ span $\mathbb{R}^\mathcal{F}$ as our final goal. Here are the steps to show it:
+1. ${\rm span} \{H_i\} = \mathcal{F}$
+
+Showing ${\rm span} \{H_i\} \leq \mathcal{F}$ is straightforward. The main statement here is to show ${\rm span} \{H_i\} \geq \mathcal{F}$ :
+```Lean
+lemma span_H (huniform: uniform F k): (⊤: Submodule ℝ (F → ℝ)) ≤ Submodule.span ℝ (subset_H F k)
+```
