@@ -169,43 +169,81 @@ lemma pairwise_F_sorted_list :
     intro a ha b hb
     exact Nat.le_total (#a) #b
 
--- The sorted version of the finset F, which is a function from Fin #F to the powerset of X.
-noncomputable def F_sorted : Fin #F → { x // x ∈ X.powerset } :=
+-- The private sorted version of the finset F, which is a function from Fin #F to the powerset of X.
+noncomputable def _F_sorted : Fin #F → { x // x ∈ X.powerset } :=
   fun i ↦ (F.toList.mergeSort card_le).get (Fin.cast (F_sorted_length F) i)
 
 -- Show that the sorted version of F is a function from Fin #F to F.
 omit [DecidableEq α] in
-lemma F_sorted_mem (i : Fin #F) : F_sorted F i ∈ F := by
-  unfold F_sorted
+lemma F_sorted_mem (i : Fin #F) : _F_sorted F i ∈ F := by
+  unfold _F_sorted
   simp only [List.get_eq_getElem, Fin.coe_cast]
   have h : (F.toList.mergeSort card_le)[i] ∈ (F.toList.mergeSort card_le) := List.mem_of_getElem rfl
   rw [List.mem_mergeSort] at h
   exact mem_toList.mp h
 
+-- The sorted version of the finset F, which is a function from Fin #F to F.
+noncomputable def F_sorted : Fin #F → F :=
+  fun i ↦ ⟨_F_sorted F i, F_sorted_mem F i⟩
+
 -- Show that the sorted version of F is a function from Fin #F to X.powerset.
 omit [DecidableEq α] in
-lemma sorted_F_sorted (i j : Fin #F) (h : i < j): card_le (F_sorted F i) (F_sorted F j):= by
+lemma sorted_F_sorted (i j : Fin #F) (h : i < j): card_le (F_sorted F i).val (F_sorted F j).val:= by
   unfold F_sorted
   have h2 := pairwise_F_sorted_list F
   rw [@List.pairwise_iff_get] at h2
   exact h2 (Fin.cast (F_sorted_length F) i) (Fin.cast (F_sorted_length F) j) h
 
-/- The characteristic vector of a set A is a function from
+-- Show that the sorted version of F is Nodup.
+omit [DecidableEq α] in
+lemma neq_F_sorted (i j : Fin #F) (h : i ≠ j) :
+    (F_sorted F i) ≠ (F_sorted F j) := by
+  suffices (F_sorted F i).val.val ≠ (F_sorted F j).val.val by
+    simp [@Subtype.coe_ne_coe] at this
+    exact this
+  unfold F_sorted _F_sorted
+  simp only [List.get_eq_getElem, Fin.coe_cast]
+  rw [Subtype.coe_ne_coe]
+  have hnodup : (F.toList.mergeSort card_le).Nodup := List.nodup_mergeSort.mpr (nodup_toList F)
+  intro hcon
+  apply (List.Nodup.get_inj_iff hnodup).mp at hcon
+  rw [@Fin.mk_eq_mk, @Fin.val_eq_val] at hcon
+  exact h hcon
+
+--Ω is defined as X → {0, 1} in paper, and in this code it is defined as a subset of X → R.
+def Ω : Set (X → ℝ) := { f : X → ℝ | ∀ a, f a = 0 ∨ f a = 1 }
+
+instance: Module ℝ (@Ω α X → ℝ) := by infer_instance
+
+/- The characteristic vector of a set A_i is a function from
   X to {0, 1} that indicates membership in A.-/
-def char_vec (A : F) : X → ℝ :=
-    fun a => if a.val ∈ A.val.val then 1 else 0
+noncomputable def char_vec (i : Fin #F): X → ℝ :=
+    fun a => if a.val ∈ (F_sorted F i).val.val then 1 else 0
+
+-- Show that the char_vec can be restricted to {0, 1}.
+lemma char_vec_mem_Ω (i : Fin #F) : char_vec F i ∈ Ω := by
+  unfold char_vec Ω
+  simp only [Subtype.forall, Set.mem_setOf_eq, ite_eq_right_iff, one_ne_zero, imp_false,
+    ite_eq_left_iff, zero_ne_one, Decidable.not_not]
+  intro a b
+  exact Decidable.not_or_of_imp fun a ↦ a
+
+-- The char_vec with restricted codomain to {0, 1}.
+noncomputable def Ω_char_vec (i : Fin #F): @Ω α X := ⟨char_vec F i, char_vec_mem_Ω F i⟩
 
 -- Show that the inner product of characteristic vectors gives the card of the set intersection.
-lemma char_vec_spec (A B : F) : (char_vec F A) ⬝ᵥ (char_vec F B) = #(A.val.val ∩ B.val.val) := by
-  have h : char_vec F A ⬝ᵥ char_vec F B =
-      ∑ a : X, if a.val ∈ A.val.val ∩ B.val.val then 1 else 0 := by
+lemma char_vec_spec (i j : Fin #F) :
+    (char_vec F i) ⬝ᵥ (char_vec F j) = #((F_sorted F i).val.val ∩ (F_sorted F j).val.val) := by
+  have h : (char_vec F i) ⬝ᵥ (char_vec F j) =
+      ∑ a : X, if a.val ∈ (F_sorted F i).val.val ∩ (F_sorted F j).val.val then 1 else 0 := by
     simp only [(· ⬝ᵥ ·)]
     refine congrArg univ.sum ?_
     unfold char_vec
     aesop
   rw [h]
   simp only [sum_boole, Nat.cast_inj]
-  suffices {x | x ∈ A.val.val ∩ B.val.val} = A.val.val ∩ B.val.val by
+  suffices {x | x ∈ (F_sorted F i).val.val ∩ (F_sorted F j).val.val} =
+      (F_sorted F i).val.val ∩ (F_sorted F j).val.val by
     refine card_nbij (·.val) (fun a ↦ ?_) ?_ ?_
     · intro ha
       simp only [univ_eq_attach, mem_filter, mem_attach, true_and] at ha ⊢
@@ -215,7 +253,7 @@ lemma char_vec_spec (A B : F) : (char_vec F A) ⬝ᵥ (char_vec F B) = #(A.val.v
     · intro y hy
       have hmem : y ∈ X := by
         simp only [coe_inter, Set.mem_inter_iff, mem_coe] at hy
-        have hA := A.val.property
+        have hA := (F_sorted F i).val.property
         rw [@mem_powerset] at hA
         exact hA hy.left
       use ⟨y, hmem⟩
@@ -225,11 +263,13 @@ lemma char_vec_spec (A B : F) : (char_vec F A) ⬝ᵥ (char_vec F B) = #(A.val.v
   simp
 
 -- The characteristic polynomial of a set A
-noncomputable def char_pol (A : F) (x : X → ℝ): ℝ :=
-  ∏ l ∈ L with l < #A.val.val, ((char_vec F A) ⬝ᵥ x - l)
+noncomputable def char_pol (i : Fin #F) (x : X → ℝ): ℝ :=
+  ∏ l ∈ L with l < #(F_sorted F i).val.val, ((char_vec F i) ⬝ᵥ x - l)
+
+noncomputable def Ω_char_pol (i : Fin #F) (x : @Ω α X): ℝ := char_pol F L i (x : X → ℝ)
 
 -- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
-lemma char_pol_spec_1 (A : F) : char_pol F L A (char_vec F A) ≠ 0 := by
+lemma char_pol_spec_1 (i : Fin #F) : char_pol F L i (char_vec F i) ≠ 0 := by
   unfold char_pol
   refine prod_ne_zero_iff.mpr ?_
   intro a ha
@@ -241,26 +281,50 @@ lemma char_pol_spec_1 (A : F) : char_pol F L A (char_vec F A) ≠ 0 := by
 
 /- Show that the characteristic polynomial is zero for
 the characteristic vector of B with lower cardinality.-/
-lemma char_pol_spec_2 (A B: F) (hneq : A ≠ B) (hAB : #B.val.val ≤ #A.val.val)
-    (hintersect : intersecting F L): char_pol F L A (char_vec F B) = 0 := by
+lemma char_pol_spec_2 (i j: Fin #F) (hneq : i ≠ j) (hji : j < i)
+    (hintersect : intersecting F L): char_pol F L i (char_vec F j) = 0 := by
   unfold char_pol
   unfold intersecting at hintersect
   refine prod_eq_zero_iff.mpr ?_
-  use #(A.val.val ∩ B.val.val)
+  use #((F_sorted F i).val.val ∩ (F_sorted F j).val.val)
   rw [char_vec_spec, sub_self, propext (and_iff_left rfl), mem_filter]
   constructor
-  · exact hintersect A B hneq
+  · refine hintersect (F_sorted F i) (F_sorted F j) ?_
+    exact neq_F_sorted F i j hneq
   · refine card_lt_card ?_
     rw [@Finset.ssubset_iff_subset_ne]
     constructor
     · exact inter_subset_left
     · rw [ne_eq, inter_eq_left]
       by_contra hcon
-      have h := eq_of_subset_of_card_le hcon hAB
+      have hle := sorted_F_sorted F j i hji
+      unfold card_le at hle
+      rw [Bool.decide_iff] at hle
+      have h := eq_of_subset_of_card_le hcon hle
       simp only [@SetCoe.ext_iff] at h
-      exact hneq h
+      exact (neq_F_sorted F i j hneq) h
 
-instance: Module ℝ ( (X → ({0, 1} : Set ℝ)) → ℝ) := by infer_instance
+example (f : X → ℝ) (h : f = 0)(a : X): f = 0 := by
+  have h : f a = 0:= by exact congrFun h a
+  sorry
+
+lemma Ω_char_pol_lin_indep : LinearIndependent ℝ (Ω_char_pol F L) := by
+  by_contra hcon
+  rw [@Fintype.not_linearIndependent_iff] at hcon
+  obtain ⟨g, hg, hi⟩ := hcon
+  have h := Fin.find (fun i ↦ g i ≠ 0)
+  have hexist := Fin.isSome_find_iff.mpr hi
+  rw [@Option.isSome_iff_exists] at hexist
+  obtain ⟨i, hi⟩ := hexist
+  rw [@Fin.find_eq_some_iff] at hi
+  obtain ⟨hi, hmin⟩ := hi
+  have hsubst := congrFun hg (Ω_char_vec F i)
+  simp only [Ω_char_vec, sum_apply, Pi.smul_apply, Ω_char_pol, smul_eq_mul,
+    Pi.zero_apply] at hsubst
+  --TODO: Show that all the x before i gives zero since g x = 0 by hmin.
+  --TODO: Show that all the x after i gives zero since char_pol = 0 by char_pol_spec_2.
+  --TODO: Thus Show that g i * char_pol F L i (char_vec F i) = 0, which contradicts char_pol_spec_1.
+  sorry
 
 theorem Frankl_Wilson (hintersect : intersecting F L):
     #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by sorry
