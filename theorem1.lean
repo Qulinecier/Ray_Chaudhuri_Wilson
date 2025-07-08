@@ -124,26 +124,78 @@ lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_
   rw [h1] at h3
   exact Nat.le_trans h3 h2
 
-def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a<b
-instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLt
+--PETER: a < b is not antisymm but a ≤ b is
+def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a ≤ b
+instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLe
 instance: IsTrans ℕ sort_fun where
-  trans := fun
-    | .zero => sorry
-    | .succ n => sorry
+  trans := by
+    intro x b c hxb hbc
+    exact Nat.le_trans hxb hbc
 
-instance: IsAntisymm ℕ sort_fun := sorry
+instance: IsAntisymm ℕ sort_fun where
+  antisymm := by
+    intro a b hab hba
+    exact Nat.le_antisymm hab hba
 
-instance: IsTotal ℕ sort_fun:= sorry
+instance: IsTotal ℕ sort_fun where
+  total := by
+    intro a b
+    exact Nat.le_total a b
 
 variable (hL: (Finset.sort sort_fun L).length = s)
 
 
 namespace Frankl_Wilson
 
-/-The characteristic vector of a set A.-/
+-- card_le F A B means that the cardinality of A is no greater than that of B.
+def card_le (A B : { x // x ∈ X.powerset }) : Bool := #A.val ≤ #B.val
+
+-- Show that the length of the sorted list is the same as the original finset.
+omit [DecidableEq α] in
+lemma F_sorted_length : #F = (F.toList.mergeSort card_le).length := by
+  simp only [List.length_mergeSort, length_toList]
+
+-- Show that the sorted list is a pairwise relation with respect to card_le.
+omit [DecidableEq α] in
+lemma pairwise_F_sorted_list :
+    List.Pairwise (fun a b ↦ card_le a b) (F.toList.mergeSort card_le) := by
+  refine @List.sorted_mergeSort _ card_le ?_ ?_ F.toList
+  · unfold card_le
+    simp only [decide_eq_true_eq, Subtype.forall, mem_powerset]
+    intro _ _ _ _ _ _ hab hbc
+    exact Nat.le_trans hab hbc
+  · unfold card_le
+    simp only [Bool.or_eq_true, decide_eq_true_eq, Subtype.forall, mem_powerset]
+    intro a ha b hb
+    exact Nat.le_total (#a) #b
+
+-- The sorted version of the finset F, which is a function from Fin #F to the powerset of X.
+noncomputable def F_sorted : Fin #F → { x // x ∈ X.powerset } :=
+  fun i ↦ (F.toList.mergeSort card_le).get (Fin.cast (F_sorted_length F) i)
+
+-- Show that the sorted version of F is a function from Fin #F to F.
+omit [DecidableEq α] in
+lemma F_sorted_mem (i : Fin #F) : F_sorted F i ∈ F := by
+  unfold F_sorted
+  simp only [List.get_eq_getElem, Fin.coe_cast]
+  have h : (F.toList.mergeSort card_le)[i] ∈ (F.toList.mergeSort card_le) := List.mem_of_getElem rfl
+  rw [List.mem_mergeSort] at h
+  exact mem_toList.mp h
+
+-- Show that the sorted version of F is a function from Fin #F to X.powerset.
+omit [DecidableEq α] in
+lemma sorted_F_sorted (i j : Fin #F) (h : i < j): card_le (F_sorted F i) (F_sorted F j):= by
+  unfold F_sorted
+  have h2 := pairwise_F_sorted_list F
+  rw [@List.pairwise_iff_get] at h2
+  exact h2 (Fin.cast (F_sorted_length F) i) (Fin.cast (F_sorted_length F) j) h
+
+/- The characteristic vector of a set A is a function from
+  X to {0, 1} that indicates membership in A.-/
 def char_vec (A : F) : X → ℝ :=
     fun a => if a.val ∈ A.val.val then 1 else 0
 
+-- Show that the inner product of characteristic vectors gives the card of the set intersection.
 lemma char_vec_spec (A B : F) : (char_vec F A) ⬝ᵥ (char_vec F B) = #(A.val.val ∩ B.val.val) := by
   have h : char_vec F A ⬝ᵥ char_vec F B =
       ∑ a : X, if a.val ∈ A.val.val ∩ B.val.val then 1 else 0 := by
@@ -172,9 +224,11 @@ lemma char_vec_spec (A B : F) : (char_vec F A) ⬝ᵥ (char_vec F B) = #(A.val.v
   ext a
   simp
 
+-- The characteristic polynomial of a set A
 noncomputable def char_pol (A : F) (x : X → ℝ): ℝ :=
   ∏ l ∈ L with l < #A.val.val, ((char_vec F A) ⬝ᵥ x - l)
 
+-- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
 lemma char_pol_spec_1 (A : F) : char_pol F L A (char_vec F A) ≠ 0 := by
   unfold char_pol
   refine prod_ne_zero_iff.mpr ?_
@@ -185,6 +239,8 @@ lemma char_pol_spec_1 (A : F) : char_pol F L A (char_vec F A) ≠ 0 := by
   rw [@mem_filter] at ha
   exact Nat.ne_of_lt' ha.2
 
+/- Show that the characteristic polynomial is zero for
+the characteristic vector of B with lower cardinality.-/
 lemma char_pol_spec_2 (A B: F) (hneq : A ≠ B) (hAB : #B.val.val ≤ #A.val.val)
     (hintersect : intersecting F L): char_pol F L A (char_vec F B) = 0 := by
   unfold char_pol
