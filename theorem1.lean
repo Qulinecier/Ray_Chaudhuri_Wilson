@@ -215,6 +215,9 @@ def Ω : Set (X → ℝ) := { f : X → ℝ | ∀ a, f a = 0 ∨ f a = 1 }
 
 instance: Module ℝ (@Ω α X → ℝ) := by infer_instance
 
+noncomputable instance: DecidableEq (@Ω α X → ℝ) := by
+  exact Classical.typeDecidableEq ({f : X → ℝ | ∀ (a : { x // x ∈ X }), f a = 0 ∨ f a = 1} → ℝ)
+
 /- The characteristic vector of a set A_i is a function from
   X to {0, 1} that indicates membership in A.-/
 noncomputable def char_vec (i : Fin #F): X → ℝ :=
@@ -268,6 +271,22 @@ noncomputable def char_pol (i : Fin #F) (x : X → ℝ): ℝ :=
 
 noncomputable def Ω_char_pol (i : Fin #F) (x : @Ω α X): ℝ := char_pol F L i (x : X → ℝ)
 
+def Ω_char_pol_span : Submodule ℝ (@Ω α X → ℝ) :=
+  Submodule.span ℝ (Set.range (Ω_char_pol F L))
+
+lemma Ω_char_pol_mem_span : (Set.range (Ω_char_pol F L)) ⊆ (Ω_char_pol_span F L) := by
+  exact Submodule.span_le.mp fun ⦃x⦄ a ↦ a
+
+lemma dim_span_to_R : Module.rank ℝ (Ω_char_pol_span F L) =
+    ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
+  --apply?
+  sorry
+
+lemma finrank_dim_span_to_R (L : Finset ℕ):
+    Module.rank ℝ (Ω_char_pol_span F L) = Module.finrank ℝ (Ω_char_pol_span F L) := by
+  rw [Module.finrank_eq_of_rank_eq (dim_span_to_R F L)]
+  exact dim_span_to_R F L
+
 -- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
 lemma char_pol_spec_1 (i : Fin #F) : char_pol F L i (char_vec F i) ≠ 0 := by
   unfold char_pol
@@ -304,11 +323,24 @@ lemma char_pol_spec_2 (i j: Fin #F) (hneq : i ≠ j) (hji : j < i)
       simp only [@SetCoe.ext_iff] at h
       exact (neq_F_sorted F i j hneq) h
 
-example (f : X → ℝ) (h : f = 0)(a : X): f = 0 := by
-  have h : f a = 0:= by exact congrFun h a
-  sorry
+lemma Fin_sum_seperated (n : ℕ) (f : Fin n → ℝ) (i : Fin n) :
+    ∑ x, f x = f i + ∑ x with x < i, f x + ∑ x with i < x, f x := by
+  rw [Fintype.sum_eq_add_sum_compl i (fun x ↦ f x)]
+  have h : ({i}ᶜ : Finset (Fin n)) =
+      ({x | x < i}: Finset (Fin n)) ∪ ({x | i < x} : Finset (Fin n)) := by
+    ext x
+    simp
+  rw [Mathlib.Tactic.Ring.add_pf_add_lt, h]
+  rw [eq_comm]
+  refine sum_union (f := f) ?_
+  rw [@disjoint_iff_inter_eq_empty, @eq_empty_iff_forall_not_mem]
+  intro x hx
+  simp only [gt_iff_lt, mem_inter, mem_filter, mem_univ, true_and] at hx
+  obtain ⟨hx1, hx2⟩ := hx
+  exact lt_asymm hx1 hx2
 
-lemma Ω_char_pol_lin_indep : LinearIndependent ℝ (Ω_char_pol F L) := by
+lemma Ω_char_pol_lin_indep (hintersect : intersecting F L) :
+    LinearIndependent ℝ (Ω_char_pol F L) := by
   by_contra hcon
   rw [@Fintype.not_linearIndependent_iff] at hcon
   obtain ⟨g, hg, hi⟩ := hcon
@@ -321,13 +353,37 @@ lemma Ω_char_pol_lin_indep : LinearIndependent ℝ (Ω_char_pol F L) := by
   have hsubst := congrFun hg (Ω_char_vec F i)
   simp only [Ω_char_vec, sum_apply, Pi.smul_apply, Ω_char_pol, smul_eq_mul,
     Pi.zero_apply] at hsubst
-  --TODO: Show that all the x before i gives zero since g x = 0 by hmin.
-  --TODO: Show that all the x after i gives zero since char_pol = 0 by char_pol_spec_2.
-  --TODO: Thus Show that g i * char_pol F L i (char_vec F i) = 0, which contradicts char_pol_spec_1.
-  sorry
+  rw [Fin_sum_seperated #F _ i] at hsubst
+  --Show that all the x before i gives zero since g x = 0 by hmin.
+  have hless : ∑ x ∈ {x | x < i}, g x * char_pol F L x (char_vec F i) = 0 := by
+    rw [Finset.sum_eq_zero]
+    intro x hx
+    simp only [mem_filter, mem_univ, true_and] at hx
+    suffices g x = 0 by exact mul_eq_zero_of_left this (char_pol F L x (char_vec F i))
+    by_contra hcon2
+    exact (not_le.mpr hx) (hmin x hcon2)
+  --Show that all the x after i gives zero since char_pol = 0 by char_pol_spec_2.
+  have hmore : ∑ x ∈ {x | i < x}, g x * char_pol F L x (char_vec F i) = 0 := by
+    rw [Finset.sum_eq_zero]
+    intro x hx
+    simp only [mem_filter, mem_univ, true_and] at hx
+    rw [char_pol_spec_2 F L x i (ne_of_lt hx).symm hx hintersect]
+    exact mul_zero (g x)
+  --Thus Show that g i * char_pol F L i (char_vec F i) = 0, which contradicts char_pol_spec_1.
+  simp only [hless, hmore, add_zero, mul_eq_zero] at hsubst
+  cases hsubst with
+  | inl h1 => exact hi h1
+  | inr hi => exact char_pol_spec_1 F L i hi
 
 theorem Frankl_Wilson (hintersect : intersecting F L):
-    #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by sorry
+    #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
+  rw [← Module.finrank_eq_of_rank_eq (dim_span_to_R F L)]
+  have h2 := finrank_dim_span_to_R F L
+  unfold Ω_char_pol_span at h2 ⊢
+  have h := linearIndependent_span (Ω_char_pol_lin_indep F L hintersect)
+  have h := LinearIndependent.cardinal_le_rank (h)
+  rw [Cardinal.mk_fintype, Fintype.card_fin, h2, Nat.cast_le] at h
+  exact h
 
 end Frankl_Wilson
 
