@@ -215,9 +215,6 @@ def Ω : Set (X → ℝ) := { f : X → ℝ | ∀ a, f a = 0 ∨ f a = 1 }
 
 instance: Module ℝ (@Ω α X → ℝ) := by infer_instance
 
-noncomputable instance: DecidableEq (@Ω α X → ℝ) := by
-  exact Classical.typeDecidableEq ({f : X → ℝ | ∀ (a : { x // x ∈ X }), f a = 0 ∨ f a = 1} → ℝ)
-
 /- The characteristic vector of a set A_i is a function from
   X to {0, 1} that indicates membership in A.-/
 noncomputable def char_vec (i : Fin #F): X → ℝ :=
@@ -277,15 +274,75 @@ def Ω_char_pol_span : Submodule ℝ (@Ω α X → ℝ) :=
 lemma Ω_char_pol_mem_span : (Set.range (Ω_char_pol F L)) ⊆ (Ω_char_pol_span F L) := by
   exact Submodule.span_le.mp fun ⦃x⦄ a ↦ a
 
-lemma dim_span_to_R : Module.rank ℝ (Ω_char_pol_span F L) =
-    ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
-  --apply?
+/-def Ω_unit_vec (i : X): @Ω α X := ⟨fun x => if i = x then 1 else 0, by
+  unfold Ω
+  simp only [Subtype.forall, Set.mem_setOf_eq, ite_eq_right_iff, one_ne_zero, imp_false,
+    ite_eq_left_iff, zero_ne_one, Decidable.not_not]
+  intro a b
+  exact ne_or_eq i ⟨a, b⟩ ⟩
+
+def Ω_multilinear_set_deg_s : Set (@Ω α X → ℝ) := {f | ∃ S : Finset X, #S = s ∧
+  f = fun (x : @Ω α X) => ∏ l ∈ S, (x : X → ℝ) ⬝ᵥ (Ω_unit_vec l)}-/
+
+
+-- The set of all monic multilinear polynomials with degree less than L
+def Ω_multilinear_set : Set (@Ω α X → ℝ) := {f | ∃ S : Finset X, #S ≤ #L ∧
+  f = fun (x : @Ω α X) => ∏ l ∈ S, x.1 l}
+
+-- The span of Ω_multilinear_set
+def Ω_multilinear_span : Submodule ℝ (@Ω α X → ℝ) := Submodule.span ℝ (Ω_multilinear_set L)
+
+-- This lemma shows that x_i ^ p = x_i for any x ∈ Ω.
+omit [DecidableEq α] in
+lemma Ω_spec (l : X) (p : ℕ) (hp : p ≠ 0):
+    (fun (x : @Ω α X ) => (x.1 l) ^ p ) = (fun (x : @Ω α X ) => x.1 l) := by
+  ext x
+  have h := x.2
+  simp only [Ω, Subtype.forall, Set.mem_setOf_eq] at h
+  have h : x.1 l = 0 ∨ x.1 l = 1 := by exact h l l.2
+  cases h
+  next h =>
+    rw [h]
+    exact zero_pow hp
+  next h =>
+    rw [h]
+    exact one_pow p
+
+lemma Ω_char_pol_spec (i : Fin #F):
+    Ω_char_pol F L i ∈ Ω_multilinear_span L := by
+  refine Submodule.mem_span.mpr ?_
   sorry
 
-lemma finrank_dim_span_to_R (L : Finset ℕ):
-    Module.rank ℝ (Ω_char_pol_span F L) = Module.finrank ℝ (Ω_char_pol_span F L) := by
-  rw [Module.finrank_eq_of_rank_eq (dim_span_to_R F L)]
-  exact dim_span_to_R F L
+lemma span_to_R_le_span_ml : (Ω_char_pol_span F L) ≤
+    Ω_multilinear_span L := by
+  unfold Ω_char_pol_span
+  suffices Set.range (Ω_char_pol F L) ⊆ (Ω_multilinear_span (X := X) L) by
+    exact Submodule.span_le.mpr this
+  intro x hx
+  rw [@Set.mem_range] at hx
+  obtain ⟨y, hy⟩ := hx
+  subst hy
+  exact Ω_char_pol_spec F L y
+
+instance : Fintype (Ω_multilinear_set (X := X) L) := by sorry
+
+lemma card_Ω_multilinear_set :
+    #(Ω_multilinear_set (X := X) L).toFinset = ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
+  sorry
+
+lemma dim_Ω_multilinear_span : Module.rank ℝ (Ω_multilinear_span (X := X) L) ≤
+    ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
+  rw [(card_Ω_multilinear_set L).symm]
+  have h := rank_span_finset_le (R := ℝ) (Ω_multilinear_set (X := X) L).toFinset
+  rw [Set.coe_toFinset] at h
+  exact h
+
+lemma dim_span_to_R_le : Module.rank ℝ (Ω_char_pol_span F L) ≤
+    ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
+  exact Preorder.le_trans (Module.rank ℝ (Ω_char_pol_span F L))
+    (Module.rank ℝ (Ω_multilinear_span (X := X) L))
+    (↑(∑ m ∈ range (#L + 1), (#X).choose m))
+    (Submodule.rank_mono (span_to_R_le_span_ml F L)) (dim_Ω_multilinear_span L)
 
 -- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
 lemma char_pol_spec_1 (i : Fin #F) : char_pol F L i (char_vec F i) ≠ 0 := by
@@ -377,13 +434,10 @@ lemma Ω_char_pol_lin_indep (hintersect : intersecting F L) :
 
 theorem Frankl_Wilson (hintersect : intersecting F L):
     #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
-  rw [← Module.finrank_eq_of_rank_eq (dim_span_to_R F L)]
-  have h2 := finrank_dim_span_to_R F L
-  unfold Ω_char_pol_span at h2 ⊢
   have h := linearIndependent_span (Ω_char_pol_lin_indep F L hintersect)
-  have h := LinearIndependent.cardinal_le_rank (h)
-  rw [Cardinal.mk_fintype, Fintype.card_fin, h2, Nat.cast_le] at h
-  exact h
+  apply LinearIndependent.cardinal_le_rank at h
+  rw [Cardinal.mk_fintype, Fintype.card_fin] at h
+  exact Nat.cast_le.mp (le_trans h (dim_span_to_R_le F L))
 
 end Frankl_Wilson
 
