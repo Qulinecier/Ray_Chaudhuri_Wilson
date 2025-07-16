@@ -9,7 +9,6 @@ import Mathlib.LinearAlgebra.Span.Defs
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.Data.Fintype.Defs
-import Mathlib.Data.Finset.Sort
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 
 
@@ -165,7 +164,8 @@ lemma card_powerset_card_product (hrs : r ≤ s) : #{S ∈ powersetCard s X | #(
 ∑(S_bar: S∈𝓟ₛ(X), |S∩A|=r) = ∑μ∈L, binom(μ, r) * binom(k-μ, s-r)* H,
 where H is the uniform intersection indicator
 -/
-lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L) (huniform: uniform F k) (hrs : r ≤ s):
+lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L)
+    (huniform: uniform F k) (r : ℕ) (hrs : r ≤ s) (A : F):
     subset_intersection_indicator F s A r =
     ∑ (l∈ L), (Nat.choose l r) * (Nat.choose (k - l) (s - r))
     * (intersection_indicator F A l) := by
@@ -277,90 +277,116 @@ lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_
   rw [h1] at h3
   exact Nat.le_trans h3 h2
 
-def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a<b
-instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLt
-instance: IsTrans ℕ sort_fun where
-  trans := fun
-    | .zero => sorry
-    | .succ n => sorry
-
-instance: IsAntisymm ℕ sort_fun := sorry
-
-instance: IsTotal ℕ sort_fun:= sorry
-
-variable (hL: (Finset.sort sort_fun L).length = s)
-
-
-
-def v_r (t: ℕ) (ht : t < s) := (Nat.choose (Finset.sort sort_fun L)[t] r)
-    * (Nat.choose (k - (Finset.sort sort_fun L)[t])) (s - r)
-
-
-def composed_mat : Matrix (Fin (s)) (Fin (s)) ℝ := fun i j => v_r k s L j hL i i.isLt
-
-lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
-  rw [isUnit_iff_exists]
-  sorry
-
-
-
-#check intersection_indicator
-
 noncomputable def subset_H :=
   Finset.image (fun (S : Finset α) => (intersection_indicator F S k: F → ℝ)) (powersetCard k X)
 
 /--span{intersecting indicator H} = 𝓕-/
-lemma span_H (huniform: uniform F k): (⊤: Submodule ℝ (F → ℝ)) ≤ Submodule.span ℝ (subset_H F k):=by
-  intro x hx
+lemma span_H (huniform: uniform F k): (⊤: Submodule ℝ (F → ℝ)) =
+    Submodule.span ℝ (subset_H F k):=by
+  refine' le_antisymm ?_ ?_
+  · intro x hx
+    unfold subset_H
+    simp only [coe_image]
+    have hx_coe: x = ∑ (S:F), (x S) • intersection_indicator F S k := by
+      nth_rw 1 [(Basis.sum_repr (Pi.basisFun ℝ F) x).symm]
+      congr! with A hA
+      simp only [Pi.basisFun_apply]
+      unfold intersection_indicator
+      funext B
+      by_cases hB: A = B
+      · rw [hB]
+        simp only [Pi.single_eq_same, inter_self]
+        have hBk:= huniform B
+        rw [if_pos]
+        exact hBk
+      · rw [Pi.single_eq_of_ne' hB 1]
+        rw [if_neg]
+        by_contra hAB
+        have hAB_new : (A:Finset α ) ≠ (B: Finset α ) :=by
+          by_contra h1
+          exact hB (Subtype.eq (Subtype.eq h1))
+        apply hAB_new
+        have hBk:= huniform B
+        have hAk:= huniform A
+        have hkk: k ≤ k := by exact Nat.le_refl k
+        have hBAB: #(B: Finset α) ≤ #((B: Finset α) ∩ (A: Finset α)) := by
+          nth_rw 1 [← hBk] at hkk
+          rw [← hAB] at hkk
+          exact hkk
+        have hABA: #(A: Finset α) ≤ #((B: Finset α) ∩ (A: Finset α)) := by
+          nth_rw 1 [← hAk] at hkk
+          rw [← hAB] at hkk
+          exact hkk
+        exact Eq.trans ((subset_iff_eq_of_card_le hABA).mp inter_subset_right).symm
+          ((subset_iff_eq_of_card_le hBAB).mp inter_subset_left)
+    rw [hx_coe]
+    apply sum_mem
+    intro A hA
+    rw [Submodule.mem_span]
+    intro V hV
+    simp only [Set.image_subset_iff] at hV
+    have hAp : A.val.val ∈ powersetCard k X :=by
+      simp only [mem_powersetCard]
+      constructor
+      · have hAX: A.val.val ∈ X.powerset := by simp only [coe_mem]
+        exact mem_powerset.mp hAX
+      · exact huniform A
+    have h:= hV hAp
+    simp only [Set.mem_preimage, SetLike.mem_coe] at h
+    exact Submodule.smul_mem V (x A) h
+  · exact fun ⦃x⦄ a ↦ trivial
+
+
+variable (hL: k∈L)
+
+#check Finset.image (fun (A: X.powerset) => subset_intersection_indicator F s A r) F
+
+
+noncomputable def subset_G := ⋃ (r : {r // r ≤ s}),
+    toSet (Finset.image (fun (A: X.powerset) =>
+    subset_intersection_indicator F s A r) F)
+
+#check subset_G F s
+#check vector_sum_eq_intersection_sum
+
+
+instance: Membership (Finset α) (Finset X.powerset)where
+  mem := fun A => fun B => ∃ x ∈ A, x.val = B
+
+
+lemma span_G (hL: k∈L) (hrL: ∀(r:L), r≤k) (huniform: uniform F k) (hintersect : intersecting F L):
+    Submodule.span ℝ (toSet (subset_H F k))≤
+    Submodule.span ℝ (subset_G F s):= by
   unfold subset_H
+  unfold subset_G
   simp only [coe_image]
-  have hx_coe: x = ∑ (S:F), (x S) • intersection_indicator F S k := by
-    nth_rw 1 [(Basis.sum_repr (Pi.basisFun ℝ F) x).symm]
-    congr! with A hA
-    simp only [Pi.basisFun_apply]
-    unfold intersection_indicator
-    funext B
-    by_cases hB: A = B
-    · rw [hB]
-      simp only [Pi.single_eq_same, inter_self]
-      have hBk:= huniform B
-      rw [if_pos]
-      exact hBk
-    · rw [Pi.single_eq_of_ne' hB 1]
-      rw [if_neg]
-      by_contra hAB
-      have hAB_new : (A:Finset α ) ≠ (B: Finset α ) :=by
-        by_contra h1
-        exact hB (Subtype.eq (Subtype.eq h1))
-      apply hAB_new
-      have hBk:= huniform B
-      have hAk:= huniform A
-      have hkk: k ≤ k := by exact Nat.le_refl k
-      have hBAB: #(B: Finset α) ≤ #((B: Finset α) ∩ (A: Finset α)) := by
-        nth_rw 1 [← hBk] at hkk
-        rw [← hAB] at hkk
-        exact hkk
-      have hABA: #(A: Finset α) ≤ #((B: Finset α) ∩ (A: Finset α)) := by
-        nth_rw 1 [← hAk] at hkk
-        rw [← hAB] at hkk
-        exact hkk
-      exact Eq.trans ((subset_iff_eq_of_card_le hABA).mp inter_subset_right).symm
-        ((subset_iff_eq_of_card_le hBAB).mp inter_subset_left)
-  rw [hx_coe]
-  apply sum_mem
-  intro A hA
-  rw [Submodule.mem_span]
-  intro V hV
-  simp only [Set.image_subset_iff] at hV
-  have hAp : A.val.val ∈ powersetCard k X :=by
-    simp only [mem_powersetCard]
-    constructor
-    · have hAX: A.val.val ∈ X.powerset := by simp only [coe_mem]
-      exact mem_powerset.mp hAX
-    · exact huniform A
-  have h:= hV hAp
-  simp only [Set.mem_preimage, SetLike.mem_coe] at h
-  exact Submodule.smul_mem V (x A) h
+  apply Submodule.span_le.2
+  intro H hH
+  simp only [SetLike.mem_coe]
+  simp only [Set.mem_image, mem_coe, mem_powersetCard] at hH
+  cases' hH with A hA
+    /-
+    have hc: ⋃ (r : {r // r ≤ s}),
+        toSet (Finset.image (fun (A: X.powerset) =>
+        subset_intersection_indicator F s A r) F) =
+        ⋃ (r : {r // r ≤ s}),
+        toSet (Finset.image (fun (A: X.powerset) =>
+        ∑ (l∈ L), (Nat.choose l r) * (Nat.choose (k - l) (s - r))
+        * (intersection_indicator F A l)) F):=by
+      congr! 1 with r
+      funext r
+      simp only [coe_image, Pi.natCast_def]
+      congr! with A hA
+      exact vector_sum_eq_intersection_sum F k s L hintersect huniform r.val r.property ⟨A, hA⟩
+    simp only [coe_image, Pi.natCast_def] at hc
+    rw [hc]
+    -/
+
+  --rw [Submodule.span_iUnion]
+  sorry
+
+
+
 
 
 theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
