@@ -363,6 +363,7 @@ noncomputable def enumL {s: ℕ} {L : Finset ℕ} (hL_card: #L = s) : L ≃ Fin 
 variable (hL_card : #L = s) (hL: k∈L)
 
 
+
 lemma span_G (hL_card : #L = s) (hL: k∈L) (hrL: ∀(r:L), r≤k) (huniform: uniform F k) (hintersect : intersecting F L):
     Submodule.span ℝ (toSet (subset_H F k))≤
     Submodule.span ℝ (subset_G F s L):= by
@@ -398,27 +399,46 @@ lemma span_G (hL_card : #L = s) (hL: k∈L) (hrL: ∀(r:L), r≤k) (huniform: un
         exact hh hx
       use hAU
     · rfl
+
   have hsmallspan: H ∈ Submodule.span ℝ ({subset_intersection_indicator F s A k}):=by
-    have hG:= fun r => fun hr =>  vector_sum_eq_intersection_sum F k k L
+    have hG:= fun r => fun hr =>  vector_sum_eq_intersection_sum F k s L
       hintersect huniform r hr ⟨A, hA1⟩
     let inter_matrix : Matrix (Fin s) F ℝ := fun l => intersection_indicator F A ((enumL hL_card).symm l)
-    #check inter_matrix
     let coe_matrix: Matrix (Fin s) (Fin s) ℝ := fun r => fun l =>
       (Nat.choose ((enumL hL_card).symm l) r) * (Nat.choose (k - ((enumL hL_card).symm l)) (s - r))
-    #check coe_matrix *  inter_matrix
-    let G_matrix: Matrix (Fin s) F ℝ:=  fun r => subset_intersection_indicator F k A r
+    let G_matrix: Matrix (Fin s) F ℝ:=  fun r => subset_intersection_indicator F s A r
     have hGmat : G_matrix = coe_matrix *  inter_matrix := by
       unfold G_matrix
       unfold coe_matrix
       unfold inter_matrix
       funext r
       rw [hG r]
+      · rw [Matrix.mul_apply_eq_vecMul, Matrix.vecMul_eq_sum, fun f ↦ Eq.symm (sum_coe_sort L f),
+          Finset.sum_equiv (enumL hL_card)]
+        · exact fun l => by refine' ⟨fun hl => mem_univ ((enumL hL_card) l), fun hl => mem_univ l⟩
+        · intro l hl
+          rw [Equiv.symm_apply_apply]
+          rfl
+      · exact Fin.is_le'
+    have hInv: Invertible coe_matrix := by
+      unfold coe_matrix
       sorry
-      sorry
-    have hInv: Invertible coe_matrix := by sorry
+      done
     have hGcoe : coe_matrix ⁻¹ * G_matrix = inter_matrix := by
       rw [hGmat, ← Matrix.mul_assoc]
       simp only [Matrix.inv_mul_of_invertible, Matrix.one_mul]
+    let k_fin := (enumL hL_card) ⟨k, hL⟩
+
+    have hGcoe_k: (coe_matrix ⁻¹ * G_matrix) k_fin = inter_matrix k_fin := by
+      exact congrFun hGcoe k_fin
+
+    unfold G_matrix at hGcoe_k
+    unfold coe_matrix at hGcoe_k
+    unfold inter_matrix at hGcoe_k
+    rw [Equiv.symm_apply_apply, hA2] at hGcoe_k
+    rw [← hGcoe_k]
+    rw [Matrix.mul_apply_eq_vecMul]
+    rw [Matrix.vecMul_eq_sum]
     sorry
 
   have h: H ∈ Submodule.span ℝ ({subset_intersection_indicator F s A k})
