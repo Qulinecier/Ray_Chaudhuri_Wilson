@@ -77,9 +77,23 @@ lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L) (huniform: 
 
 
 We want to show $\left\{\bar{S}: S \in \mathscr{P}_s(X)\right\}$ span $\mathbb{R}^\mathcal{F}$ as our final goal. Here are the steps to show it:
-1. ${\rm span} \{H_i\} = \mathcal{F}$
 
-Showing ${\rm span} \{H_i\} \leq \mathcal{F}$ is straightforward. The main statement here is to show ${\rm span} \{H_i\} \geq \mathcal{F}$ :
+Step 1. ${\rm span} \{H_0|A_0 \in \mathcal{F}\} = \mathcal{F}$
+
+Step 2. ${\rm span}\{G_r\} = {\rm span}\{H_0| A_0 \in \mathcal{F}\}$
+
+Step 3. ${\rm span} \{G_r\} \subseteq {\rm span}\left\{\bar{S}: S \in \mathscr{P}_s(X)\right\}$
+
+They are given as below:
 ```Lean
 lemma span_H (huniform: uniform F k): (⊤: Submodule ℝ (F → ℝ)) ≤ Submodule.span ℝ (subset_H F k)
+
+lemma span_G (hL_card : #L = s) (hL: k∈L) (hrL: ∀(r:L), r≤k) (huniform: uniform F k)
+  (hintersect : intersecting F L):
+    Submodule.span ℝ (toSet (subset_H F k)) ≤
+    Submodule.span ℝ (subset_G F s)
+
+lemma span_G_F : Submodule.span ℝ (subset_G F s) ≤
+    Submodule.span ℝ (subset_indicator_set F s)
 ```
+
