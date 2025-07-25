@@ -24,126 +24,7 @@ def uniform {X: Finset α} (F: Finset X.powerset) (k : ℕ) : Prop := ∀ (A : F
 def intersecting {X: Finset α} (F: Finset X.powerset) (L : Set ℕ) :=
   ∀ (A B: F), A ≠ B → #(A.val.val ∩ B.val.val) ∈ L
 
-
-
-variable (k s: ℕ) (L : Finset ℕ)
-
-
-instance: Module ℝ (F → ℝ) := by infer_instance
-
-/--The indicator vector of subset S: S = ∑(A: A ∈ F, S ⊆ A).-/
-def subset_indicator (S : Finset α): F → ℝ  :=
-    fun A => if S ⊆ A then 1 else 0
-
-/--The intersection indicator vector of subset S: H = ∑(B:B ∈ F,|B∩S|=μ)-/
-def intersection_indicator (S: Finset α) (μ : ℕ): F → ℝ :=
-    fun B => if #(B ∩ S) = μ then 1 else 0
-
-/--The indicator combine both subset and intersection, i.e. G = ∑(S_bar: S∈ 𝓟ₛ(X), |S∩A| = μ)-/
-def subset_intersection_indicator (A: Finset α) (μ : ℕ): F → ℝ :=
-    fun B => ∑ (S: powersetCard s X), if #(A ∩ S)  = μ then (subset_indicator F S B) else 0
-
-variable (r: ℕ) (A: Finset α)
-
---TODO
-lemma indicator_eq: subset_intersection_indicator F s A r =
-    ∑ (l: L), (Nat.choose l r) * (Nat.choose (#A - l) (s - r))
-    * (intersection_indicator F A l) := by
-  unfold subset_intersection_indicator
-  funext B
-  simp only [Finset.sum_apply]
-  unfold subset_indicator
-  simp only [Pi.natCast_def, Pi.mul_apply, mul_ite, mul_one, mul_zero]
-
-  have h1: (∑ (S: powersetCard s X), if #(A ∩ S) = r then (if (S: Finset α) ⊆ (B: Finset α) then (1: ℝ) else 0) else 0)
-    = ∑ (x : L), ∑ (S: powersetCard s X),
-    if ((#(A ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α)))
-    then (intersection_indicator F A x B) else 0 := by sorry
-
-  rw [h1]
-
-  have h2: ∀ (x : L), (∑ (S: powersetCard s X),
-    if ((#(A ∩ S) = r) ∧ ((S: Finset α) ⊆ (B: Finset α))) then (intersection_indicator F A x B) else 0) =
-    (Nat.choose x r) * (Nat.choose (#A - x) (s - r))
-    * (intersection_indicator F A x) B := by
-
-    intro x
-    sorry
-
-  congr! with x hx
-
-  rw [h2 x]
-
-variable (S: X.powerset)
-
-
-/--The set of indicator vectors {S_bar : S ∈ 𝓟ₛ(X)}-/
-noncomputable def subset_indicator_set :=
-  Finset.image (fun (S : Finset α) => (subset_indicator F S: F → ℝ)) (powersetCard s X)
-
-
-theorem my_finrank_pi (ι : Type) [Fintype ι]:
-    Module.finrank ℝ (ι → ℝ) = Fintype.card ι := by
-  simp [Module.finrank]
-
-
-lemma F_rank {α : Type} {X : Finset α} (F : Finset { x // x ∈ X.powerset }):
-    Module.finrank ℝ (⊤: Submodule ℝ (F → ℝ)) = #F := by
-  simp only [finrank_top]
-  rw [← Fintype.card_coe F]
-  exact my_finrank_pi F
-
-
-lemma subset_indicator_rank (hX : #X = n): #(subset_indicator_set F s)
-    ≤ Nat.choose n s := by
-  have h1 : #(subset_indicator_set F s) ≤ #(powersetCard s X) := by
-    exact Finset.card_image_le
-  have h2 : #(powersetCard s X) = n.choose s := by
-    have h := (Finset.card_powersetCard s X).symm
-    rw [hX] at h
-    exact h.symm
-  rw [h2.symm]
-  exact h1
-
-#check rank_span_finset_le
-
-
-lemma subset_vector_span_dim_le (h: Submodule.span ℝ (toSet (subset_indicator_set F s)) = (⊤: Submodule ℝ (F → ℝ)))
-  (hX : #X = n) : #F ≤ Nat.choose n s := by
-  have h1 : Module.finrank ℝ (Submodule.span ℝ (toSet (subset_indicator_set F s)))
-      = Module.finrank ℝ (⊤: Submodule ℝ (F → ℝ)) := by
-    rw [h]
-  rw [F_rank] at h1
-  have h2 := subset_indicator_rank n F s hX
-  have h3 : Module.finrank ℝ (Submodule.span ℝ (toSet (subset_indicator_set F s)))
-      ≤ #(subset_indicator_set F s) := by
-    have h : Module.rank ℝ (Submodule.span ℝ (toSet (subset_indicator_set F s)))
-      ≤ #(subset_indicator_set F s) := by
-        exact rank_span_finset_le (subset_indicator_set F s)
-    exact Module.finrank_le_of_rank_le h
-  rw [h1] at h3
-  exact Nat.le_trans h3 h2
-
---PETER: a < b is not antisymm but a ≤ b is
-def sort_fun: ℕ → ℕ → Prop := fun a => fun b => a ≤ b
-instance: DecidableRel sort_fun := by exact Aesop.Iteration.instDecidableRelLe
-instance: IsTrans ℕ sort_fun where
-  trans := by
-    intro x b c hxb hbc
-    exact Nat.le_trans hxb hbc
-
-instance: IsAntisymm ℕ sort_fun where
-  antisymm := by
-    intro a b hab hba
-    exact Nat.le_antisymm hab hba
-
-instance: IsTotal ℕ sort_fun where
-  total := by
-    intro a b
-    exact Nat.le_total a b
-
-variable (hL: (Finset.sort sort_fun L).length = s)
-
+variable (L : Finset ℕ)
 
 namespace Frankl_Wilson
 
@@ -244,12 +125,10 @@ lemma char_vec_spec (i j : Fin #F) :
   simp only [sum_boole, Nat.cast_inj]
   suffices {x | x ∈ (F_sorted F i).val.val ∩ (F_sorted F j).val.val} =
       (F_sorted F i).val.val ∩ (F_sorted F j).val.val by
-    refine card_nbij (·.val) (fun a ↦ ?_) ?_ ?_
+    refine card_nbij (·.val) (fun a ↦ ?_) (fun x1 hx1 x2 hx2 hf =>by aesop) ?_
     · intro ha
       simp only [univ_eq_attach, mem_filter, mem_attach, true_and] at ha ⊢
       exact ha
-    · intro x1 hx1 x2 hx2 hf
-      aesop
     · intro y hy
       have hmem : y ∈ X := by
         simp only [coe_inter, Set.mem_inter_iff, mem_coe] at hy
@@ -263,6 +142,7 @@ lemma char_vec_spec (i j : Fin #F) :
   simp
 
 -- The characteristic polynomial of a set A
+#check MvPolynomial X ℝ
 noncomputable def char_pol (i : Fin #F) (x : X → ℝ): ℝ :=
   ∏ l ∈ L with l < #(F_sorted F i).val.val, ((char_vec F i) ⬝ᵥ x - l)
 
@@ -280,10 +160,6 @@ def Ω_unit_vec (i : X): @Ω α X := ⟨fun x => if i = x then 1 else 0, by
     ite_eq_left_iff, zero_ne_one, Decidable.not_not]
   intro a b
   exact ne_or_eq i ⟨a, b⟩ ⟩
-
-def Ω_multilinear_set_deg_s : Set (@Ω α X → ℝ) := {f | ∃ S : Finset X, #S = s ∧
-  f = fun (x : @Ω α X) => ∏ l ∈ S, (x : X → ℝ) ⬝ᵥ (Ω_unit_vec l)}
-
 
 -- The set of all monic multilinear polynomials with degree less than L
 def Ω_multilinear_set : Set (@Ω α X → ℝ) := {f | ∃ S : Finset X, #S ≤ #L ∧
@@ -382,7 +258,7 @@ lemma char_pol_spec_2 (i j: Fin #F) (hneq : i ≠ j) (hji : j < i)
       exact (neq_F_sorted F i j hneq) h
 
 lemma Fin_sum_seperated (n : ℕ) (f : Fin n → ℝ) (i : Fin n) :
-    ∑ x, f x = f i + ∑ x with x < i, f x + ∑ x with i < x, f x := by
+    ∑ x, f x = f i + ∑ x with x < i, f x + ∑ x with i < x, f x:= by
   rw [Fintype.sum_eq_add_sum_compl i (fun x ↦ f x)]
   have h : ({i}ᶜ : Finset (Fin n)) =
       ({x | x < i}: Finset (Fin n)) ∪ ({x | i < x} : Finset (Fin n)) := by
@@ -441,28 +317,6 @@ theorem Frankl_Wilson (hintersect : intersecting F L):
   exact Nat.cast_le.mp (le_trans h (dim_span_to_R_le F L))
 
 end Frankl_Wilson
-
-
-def v_r (t: ℕ) (ht : t < s) := (Nat.choose (Finset.sort sort_fun L)[t] r)
-    * (Nat.choose (k - (Finset.sort sort_fun L)[t])) (s - r)
-
-
-def composed_mat : Matrix (Fin (s)) (Fin (s)) ℝ := fun i j => v_r k s L j hL i i.isLt
-
-lemma invertible_composed_mat: IsUnit (composed_mat k s L hL) := by
-  rw [isUnit_iff_exists]
-  sorry
-
-
-theorem span_bar: Submodule.span ℝ (subset_indicator_set F s)
-    = (⊤: Submodule ℝ (F → ℝ)) := sorry
-
-
-theorem Ray_Chaudhuri_Wilson (huniform: uniform F k) (hintersect : intersecting F L)
-    (hL : #L = s): #F ≤ Nat.choose n s := by
-  apply subset_vector_span_dim_le
-  sorry
-
 
 universe u
 
