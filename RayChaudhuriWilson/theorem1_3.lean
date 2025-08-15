@@ -206,40 +206,54 @@ lemma pol_to_eval_mul_const {v : MvPolynomial X ℝ} {a : ℝ}:
   ext x
   simp
 
+-- Ω_char_pol translates characteristic polynomials to the function from Ω to ℝ via pol_to_eval
 noncomputable def Ω_char_pol (i : Fin #F) (x : @Ω α X): ℝ := (char_pol F L i).eval x
 
+-- This lemma gives a more handy definition of Ω_char_pol
 lemma Ω_char_pol_eq (i : Fin #F) : Ω_char_pol F L i = pol_to_eval (char_pol F L i) := rfl
 
-def Ω_char_pol_span : Submodule ℝ (@Ω α X → ℝ) :=
-  Submodule.span ℝ (Set.range (Ω_char_pol F L))
+-- Ω_char_pol_span is the span of all characteristic polynomials
+def Ω_char_pol_span : Submodule ℝ (@Ω α X → ℝ) := Submodule.span ℝ (Set.range (Ω_char_pol F L))
 
 /- Ω_multilinear_set is the set of all monic multilinear polynomials with totaldegree less than L,
   in the context of function from Ω to ℝ.-/
 def Ω_multilinear_set : Set (@Ω α X → ℝ) := pol_to_eval ''
   {f | f.totalDegree ≤ #L ∧ ∃ S : X →₀ ℕ, f = MvPolynomial.monomial S 1}
 
+/- pol_power_shrink send a Finsupp S to a "shrinked" Finsupp, keeping S.support the same while
+decreasing any non-zero terms to 1. It is used to decrease the degree of MvPolynomials to 1,
+since they are equivalent in the perspective of functions from Ω to ℝ.
+S is usually the degree of a MvPolynomial. -/
 noncomputable def pol_power_shrink (S : X →₀ ℕ) : X →₀ ℕ :=
   Finsupp.ofSupportFinite (fun x => if S x = 0 then 0 else 1) (by
     exact Set.toFinite (Function.support fun x ↦ if S x = 0 then 0 else 1))
 
+-- A more handy definition of pol_power_shrink as a function
 omit [DecidableEq α] in
 lemma pol_power_shrink_spec (S : X →₀ ℕ) (x : X):
   (pol_power_shrink S) x = (fun x ↦ if S x = 0 then 0 else 1) x := rfl
 
+-- pol_power_shrink keeps the support unchanged
 omit [DecidableEq α] in
 lemma pol_power_shrink_support_linear (S : X →₀ ℕ) : (pol_power_shrink S).support = S.support := by
   ext x
   simp [pol_power_shrink_spec]
 
+-- pol_power_shrink are equal iff the support of the original Finsupp is the same
 omit [DecidableEq α] in
-lemma pol_power_shrink_support_eq (S1 S2: X →₀ ℕ) (hs : S1.support = S2.support) :
-    pol_power_shrink S1 = pol_power_shrink S2:= by
-  ext x
-  simp only [pol_power_shrink_spec]
-  rw [@Finset.ext_iff] at hs
-  simp only [Finsupp.mem_support_iff, ne_eq, Subtype.forall, not_iff_not] at hs
-  simp [hs x]
+lemma pol_power_shrink_support_eq_iff (S1 S2: X →₀ ℕ):
+    S1.support = S2.support ↔ pol_power_shrink S1 = pol_power_shrink S2:= by
+  apply Iff.intro
+  · intro hs
+    ext x
+    simp only [pol_power_shrink_spec]
+    rw [@Finset.ext_iff] at hs
+    simp only [Finsupp.mem_support_iff, ne_eq, Subtype.forall, not_iff_not] at hs
+    simp [hs x]
+  · intro hp
+    rw [← pol_power_shrink_support_linear, hp, pol_power_shrink_support_linear]
 
+-- the card of the support of pol_power_shrink is equal to the sum of all its terms
 omit [DecidableEq α] in
 lemma card_pol_power_shrink_support (S : X →₀ ℕ) :
     #(pol_power_shrink S).support = (pol_power_shrink S).sum fun x e ↦ e := by
@@ -253,6 +267,7 @@ lemma card_pol_power_shrink_support (S : X →₀ ℕ) :
     rw [@Finsupp.mem_support_iff] at hx
     simp [hx]
 
+-- MvPolynomials is unchanged under pol_power_shrink in the perspective of functions from Ω to ℝ.
 omit [DecidableEq α] in
 lemma Ω_pol_spec_1 (S : X →₀ ℕ) : pol_to_eval (MvPolynomial.monomial S 1) =
     pol_to_eval (MvPolynomial.monomial (pol_power_shrink S) 1) := by
@@ -273,6 +288,7 @@ lemma Ω_pol_spec_1 (S : X →₀ ℕ) : pol_to_eval (MvPolynomial.monomial S 1)
   next h =>
     simp [hSy, h]
 
+-- MvPolynomials's degree after pol_power_shrink is no greater than before
 omit [DecidableEq α] in
 lemma Ω_pol_spec_2 (S : X →₀ ℕ) :
     (MvPolynomial.monomial (pol_power_shrink S) (R := ℝ) 1).totalDegree ≤
@@ -291,38 +307,57 @@ lemma Ω_pol_spec_2 (S : X →₀ ℕ) :
   · simp [hSi]
     exact Nat.one_le_iff_ne_zero.mpr hSi
 
+-- Ω_ml_pol_deg_n_set is the set of all multilinear polynomials of degree equal to n
 def Ω_ml_pol_deg_n_set : Set (MvPolynomial X ℝ) :=
   {f | f.totalDegree = n ∧ ∃ S : X →₀ ℕ, f = MvPolynomial.monomial (R := ℝ) (pol_power_shrink S) 1}
 
+-- state the definition of a MvPolynomial being in Ω_ml_pol_deg_n_set
+omit [DecidableEq α] in
+lemma Ω_ml_pol_deg_n_set_mem_def (f : MvPolynomial X ℝ) (hd : f.totalDegree = n)
+    (hf : ∃ S : X →₀ ℕ, f = MvPolynomial.monomial (R := ℝ) (pol_power_shrink S) 1) :
+    f ∈ Ω_ml_pol_deg_n_set (X := X) n := by
+  simp [Ω_ml_pol_deg_n_set, hf, hd]
+
+-- Any MvPolynomial in (Ω_ml_pol_deg_n_set n) has degree equal to n.
 def deg_n_to_deg_eq_n (f : Ω_ml_pol_deg_n_set (X := X) n) : f.1.totalDegree = n := f.2.1
 
+-- Choose a Finsupp as the degree (after shrink) of the MvPolynomial in (Ω_ml_pol_deg_n_set n).
 noncomputable def deg_n_to_finsupp (f : Ω_ml_pol_deg_n_set (X := X) n) : X →₀ ℕ := f.2.2.choose
 
+-- Show that the pol_power_shrink of the chosen Finsupp is indeed the degree of that MvPolynomial
 noncomputable def deg_n_to_finsupp_spec (f : Ω_ml_pol_deg_n_set (X := X) n) :
     f.1 = MvPolynomial.monomial (R := ℝ) (pol_power_shrink (deg_n_to_finsupp n f)) 1 :=
   f.2.2.choose_spec
 
+-- Show that support of deg_n_to_finsupp is a subset of X
+lemma deg_n_to_choose_n_sub_X (f : Ω_ml_pol_deg_n_set (X := X) n) :
+    (deg_n_to_finsupp n f).support.image (Subtype.val) ⊆ X := by
+  intro x hx
+  simp only [mem_image, Subtype.exists, exists_and_right, exists_eq_right] at hx
+  obtain ⟨hx, _⟩ := hx
+  exact hx
+
+-- Show that support of deg_n_to_finsupp has the size of n
+lemma deg_n_to_choose_n_card_n (f : Ω_ml_pol_deg_n_set (X := X) n) :
+    #((deg_n_to_finsupp n f).support.image (Subtype.val)) = n := by
+  rw [card_image_iff.mpr Set.injOn_subtype_val,
+    ← pol_power_shrink_support_linear (deg_n_to_finsupp n f)]
+  simp only [← deg_n_to_deg_eq_n n f, deg_n_to_finsupp_spec n f, ne_eq,
+    one_ne_zero, not_false_eq_true, MvPolynomial.totalDegree_monomial]
+  exact card_pol_power_shrink_support (deg_n_to_finsupp n f)
+
+/-deg_n_to_choose_n send a polynomial to its degree finsupp, which is in powersetCard n X.-/
 noncomputable def deg_n_to_choose_n (f : Ω_ml_pol_deg_n_set (X := X) n) :
     powersetCard n X := ⟨(deg_n_to_finsupp n f).support.image (Subtype.val), by
-  rw [Finset.mem_powersetCard]
-  constructor
-  · intro x hx
-    simp only [mem_image, Subtype.exists, exists_and_right, exists_eq_right] at hx
-    obtain ⟨hx, _⟩ := hx
-    exact hx
-  · rw [card_image_iff.mpr Set.injOn_subtype_val,
-      ← pol_power_shrink_support_linear (deg_n_to_finsupp n f)]
-    simp only [← deg_n_to_deg_eq_n n f, deg_n_to_finsupp_spec n f, ne_eq,
-      one_ne_zero, not_false_eq_true, MvPolynomial.totalDegree_monomial]
-    exact card_pol_power_shrink_support (deg_n_to_finsupp n f)⟩
+  simp [Finset.mem_powersetCard, deg_n_to_choose_n_sub_X, deg_n_to_choose_n_card_n]⟩
 
+-- Show that deg_n_to_choose_n is injective
 lemma deg_n_to_choose_n_inj : Function.Injective (deg_n_to_choose_n (X := X) n) := by
   intro a b hab
   simp only [deg_n_to_choose_n, Subtype.mk.injEq] at hab
   suffices a.1 = b.1 by exact SetCoe.ext this
   simp only [Set.mem_setOf_eq, deg_n_to_finsupp_spec, ne_eq, one_ne_zero, not_false_eq_true,
-    MvPolynomial.monomial_left_inj]
-  apply pol_power_shrink_support_eq
+    MvPolynomial.monomial_left_inj, ← pol_power_shrink_support_eq_iff]
   rw [@Finset.ext_iff] at hab
   ext x
   simp only [mem_image, Finsupp.mem_support_iff, ne_eq, Subtype.exists, exists_and_right,
@@ -335,26 +370,81 @@ noncomputable instance : Fintype (Ω_ml_pol_deg_n_set (X := X) n) := by
   refine Set.Finite.fintype ?_
   exact Finite.of_injective (deg_n_to_choose_n (X := X) n) (deg_n_to_choose_n_inj (X := X) n)
 
-lemma card_pol_to_eval_image_deg_n_le : Fintype.card (Ω_ml_pol_deg_n_set (X := X) n)
-    ≤ Nat.choose #X n := calc
-  _ ≤ Fintype.card (powersetCard n X) :=
-    Fintype.card_le_of_injective (deg_n_to_choose_n (X := X) n) (deg_n_to_choose_n_inj n)
+-- Show that deg_n_to_choose_n is surjective
+lemma deg_n_to_choose_n_suj : Function.Surjective (deg_n_to_choose_n (X := X) n) := by
+  intro y
+  let S : X →₀ ℕ := Finsupp.ofSupportFinite (fun x => if x.1 ∈ y.1 then 1 else 0) (
+    Set.toFinite (Function.support fun (x : X) => if x.1 ∈ y.1 then 1 else 0))
+  have hSdef (x : X) : S x = (fun x => if x.1 ∈ y.1 then 1 else 0) x := rfl
+  have hS : (pol_power_shrink S) = S := by
+    ext x
+    simp [pol_power_shrink_spec, hSdef]
+  have hyx := (Finset.mem_powersetCard.mp y.2).left
+  have hSy : S.support.image Subtype.val = y := by aesop
+  let f1 := MvPolynomial.monomial (R := ℝ) (pol_power_shrink S) 1
+  let f : (Ω_ml_pol_deg_n_set n) := ⟨f1, Ω_ml_pol_deg_n_set_mem_def n f1 (by
+    rw [MvPolynomial.totalDegree_monomial (hc := one_ne_zero), ← card_pol_power_shrink_support]
+    rw [← (Finset.mem_powersetCard.mp y.2).right, ← hSy, hS]
+    refine card_nbij Subtype.val (fun a ↦ by simp) Set.injOn_subtype_val ?_
+    intro x hx
+    simp_all
+    exact hyx hx) (by use S)⟩
+  use f
+  ext x
+  simp only [deg_n_to_choose_n, mem_image, ← hSy]
+  suffices (deg_n_to_finsupp n f).support = S.support by rw [this]
+  have hf := (deg_n_to_finsupp_spec n f).symm
+  have hf1 : f = f1 := rfl
+  simp only [hf1, ne_eq, one_ne_zero, not_false_eq_true, MvPolynomial.monomial_left_inj, f1] at hf
+  rw [pol_power_shrink_support_eq_iff, hf]
+
+-- Show that deg_n_to_choose_n is bijective
+lemma deg_n_to_choose_n_bij : Function.Bijective (deg_n_to_choose_n (X := X) n) :=
+  ⟨deg_n_to_choose_n_inj n, deg_n_to_choose_n_suj n⟩
+
+-- Using the bijection to show that the card of (Ω_ml_pol_deg_n_set n) is (#X).choose n
+lemma card_Ω_ml_pol_deg_n_set : #(Ω_ml_pol_deg_n_set (X := X) n).toFinset
+    = Nat.choose #X n := calc
+  _ = Fintype.card (Ω_ml_pol_deg_n_set (X := X) n) := by apply Set.toFinset_card
+  _ = Fintype.card (powersetCard n X) := Fintype.card_of_bijective (deg_n_to_choose_n_bij n)
   _ = #(powersetCard n X) := Fintype.card_coe (powersetCard n X)
   _ = _ := card_powersetCard n X
 
+-- Ω_ml_pol_deg_le_n_set is the set of all multilinear polynomials of degree less than or equal to n
 def Ω_ml_pol_deg_le_n_set : Set (MvPolynomial X ℝ) :=
   {f | f.totalDegree ≤ n ∧ ∃ S : X →₀ ℕ, f = MvPolynomial.monomial (pol_power_shrink S) 1}
 
-omit [DecidableEq α] in
+-- show that (Ω_ml_pol_deg_n_set n)'s are parwise disjoint for different degree n
+lemma disjoint_Ω_ml_pol_deg_n_set :
+    (Finset.range (#L + 1)).toSet.PairwiseDisjoint
+    (fun m => (Ω_ml_pol_deg_n_set (X := X) m).toFinset) := by
+  intro x hx y hy hxy
+  refine Set.disjoint_toFinset.mpr ?_
+  refine Set.disjoint_iff_forall_ne.mpr ?_
+  simp only [Ω_ml_pol_deg_n_set, Set.mem_setOf_eq, and_imp, forall_exists_index]
+  intro a ha _ _ b hb _ _
+  by_contra hcon
+  subst hcon
+  rw [ha] at hb
+  exact hxy hb
+
+-- Show that Ω_ml_pol_deg_le_n_set n is the disjoint union of polynomials of degree equal to m ≤ n
 lemma Ω_multilinear_set_union_by_deg : Ω_ml_pol_deg_le_n_set #L =
-    (⋃ m ∈ Finset.range (#L + 1), Ω_ml_pol_deg_n_set (X := X) m) := by
+    ((Finset.range (#L + 1)).disjiUnion (fun m => (Ω_ml_pol_deg_n_set (X := X) m).toFinset)
+      (disjoint_Ω_ml_pol_deg_n_set L)).toSet := by
     ext f
-    simp only [Set.mem_setOf_eq, mem_range, Set.mem_iUnion, exists_and_left, exists_prop,
-      exists_eq_left', and_congr_left_iff, forall_exists_index, Ω_ml_pol_deg_le_n_set,
-      Ω_ml_pol_deg_n_set]
+    simp only [Ω_ml_pol_deg_le_n_set, Set.mem_setOf_eq, Ω_ml_pol_deg_n_set, disjiUnion_eq_biUnion,
+      coe_biUnion, coe_range, Set.mem_Iio, Set.coe_toFinset, Set.mem_iUnion, exists_and_left,
+      exists_prop, exists_eq_left', and_congr_left_iff, forall_exists_index]
     intro _ _
     exact Iff.symm Nat.lt_add_one_iff
 
+noncomputable instance : Fintype (Ω_ml_pol_deg_le_n_set (X := X) #L) := by
+  rw [Ω_multilinear_set_union_by_deg]
+  apply FinsetCoe.fintype
+
+/- Show that Ω_multilinear_set is indeed the multilinear polynomial with degree ≤ n in the
+perspective of function from Ω to ℝ by pol_to_eval (the function of evaluation).-/
 omit [DecidableEq α] in
 lemma Ω_multilinear_set_eq : Ω_multilinear_set (X := X) L = pol_to_eval ''
     Ω_ml_pol_deg_le_n_set #L := by
@@ -385,91 +475,86 @@ lemma Ω_multilinear_set_eq : Ω_multilinear_set (X := X) L = pol_to_eval ''
 
 noncomputable instance : Fintype (Ω_multilinear_set (X := X) L) := by
   rw [Ω_multilinear_set_eq]
-  refine Set.Finite.fintype ?_
-  rw [Ω_multilinear_set_union_by_deg]
-  apply Set.toFinite
+  apply Fintype.ofFinite
 
-lemma nat_card_pol_to_eval_image_deg_n_le : Nat.card (Ω_ml_pol_deg_n_set (X := X) n)
-    ≤ Nat.choose #X n := calc
-  _ ≤ Nat.card (powersetCard n X) :=
-    Nat.card_le_card_of_injective (deg_n_to_choose_n (X := X) n) (deg_n_to_choose_n_inj n)
-  _ = #(powersetCard n X) := Nat.card_eq_finsetCard (powersetCard n X)
-  _ = _ := card_powersetCard n X
+-- Show that this "function of evaluation" is in fact bijective.
+lemma pol_to_eval_bij : Set.BijOn (β := @Ω α X → ℝ) pol_to_eval
+    (Ω_ml_pol_deg_le_n_set #L) (Ω_multilinear_set (X := X) L) := by
+  unfold pol_to_eval
+  constructor
+  · intro f hf
+    simp only [Ω_multilinear_set_eq, Set.mem_image]
+    use f
+    exact ⟨hf, rfl⟩
+  constructor
+  · intro f hf g hg hfg
+    rw [funext_iff] at hfg
+    simp only [Subtype.forall] at hfg
+    rw [hf.2.choose_spec, hg.2.choose_spec] at hfg ⊢
+    refine (MvPolynomial.monomial_eq_monomial_iff (pol_power_shrink hf.right.choose)
+      (pol_power_shrink hg.right.choose) 1 1).mpr ?_
+    simp only [and_true, one_ne_zero, and_self, or_false]
+    rw [← pol_power_shrink_support_eq_iff]
+    ext x
+    rw [← pol_power_shrink_support_linear]
+    conv => rhs; rw [← pol_power_shrink_support_linear]
+    simp only [Finsupp.mem_support_iff, ne_eq, not_iff_not]
+    let a : X → ℝ := fun w => if w = x then 0 else 1
+    have hfg := hfg a (by
+      simp only [Ω, Subtype.forall, Set.mem_setOf_eq, ite_eq_right_iff, one_ne_zero, imp_false,
+        ite_eq_left_iff, zero_ne_one, Decidable.not_not, a]
+      intro _ _
+      apply eq_or_ne
+      )
+    simp only [MvPolynomial.eval_monomial, Finsupp.prod, ite_pow, one_pow, prod_ite_eq',
+      Finsupp.mem_support_iff, ne_eq, ite_not, mul_ite, mul_one, one_mul, a] at hfg
+    apply Iff.intro
+    · intro h
+      by_contra hcon
+      simp [h, hcon] at hfg
+    · intro h
+      by_contra hcon
+      simp [h, hcon] at hfg
+  · simp only [Ω_multilinear_set_eq]
+    exact fun ⦃a⦄ a ↦ a
 
-lemma encard_pol_to_eval_image_deg_n_le : (Ω_ml_pol_deg_n_set (X := X) n).encard
-    ≤ Nat.choose #X n := by
-  have h : (Ω_ml_pol_deg_n_set (X := X) n).encard
-    = Nat.card (Ω_ml_pol_deg_n_set (X := X) n) := by apply ENat.card_eq_coe_natCard
-  rw [h]
-  have := nat_card_pol_to_eval_image_deg_n_le n (X := X)
-  norm_cast
-
-variable {U : Type} in
-lemma encard_iUnion_le (f : ℕ → Set U):
-    (⋃ m ∈ Finset.range n, f m).encard ≤ ∑ m ∈ Finset.range n, (f m).encard := by
-  induction' n with n hn
-  · simp
-  · have h : ⋃ m ∈ range (n + 1), f m = (⋃ m ∈ range n, f m) ∪ (f n) := by
-      ext x
-      simp only [mem_range, Set.mem_iUnion, exists_prop, Set.mem_union]
-      apply Iff.intro
-      · intro a
-        obtain ⟨w, left, right⟩ := a
-        by_cases hw : w = n
-        · subst hw
-          exact Or.inr right
-        · rw [Order.lt_add_one_iff] at left
-          exact Or.inl ⟨w, Nat.lt_of_le_of_ne left hw, right⟩
-      · intro a
-        cases a with
-        | inl h =>
-          obtain ⟨w, left, right⟩ := h
-          exact ⟨w, (Nat.lt_add_right 1 left), right⟩
-        | inr h_1 => exact ⟨n, lt_add_one n, h_1⟩
-    rw [h]
-    calc
-    _ ≤ (⋃ m ∈ range n, f m).encard + (f n).encard := by apply Set.encard_union_le
-    _ ≤ ∑ m ∈ range n, (f m).encard + (f n).encard := add_le_add_right hn (f n).encard
-    _ = ∑ m ∈ range (n + 1), (f m).encard := (sum_range_succ (fun x ↦ (f x).encard) n).symm
-
-omit [DecidableEq α] in
-lemma Ω_multilinear_set_spec : (Ω_multilinear_set (X := X) L).encard ≤
-    (Ω_ml_pol_deg_le_n_set (X := X) #L).encard := by
-  simp only [Ω_multilinear_set_eq, Set.encard_image_le]
-
-lemma encard_Ω_multilinear_set :
-  (Ω_multilinear_set (X := X) L).encard ≤ (∑ m ∈ Finset.range (#L + 1), Nat.choose #X m) := by
-  suffices (Ω_ml_pol_deg_le_n_set #L).encard ≤
-    (∑ m ∈ Finset.range (#L + 1), Nat.choose #X m) by
-    exact le_trans (Ω_multilinear_set_spec (X := X) L) this
-  rw [Ω_multilinear_set_union_by_deg]
-  have h : (⋃ m ∈ range (#L + 1), (Ω_ml_pol_deg_n_set (X := X) m)).encard
-      ≤ ∑ m ∈ range (#L + 1), (Ω_ml_pol_deg_n_set (X := X) m).encard := by
-    apply encard_iUnion_le
-  refine le_trans h ?_
-  rw [Nat.cast_sum (range (#L + 1)) (#X).choose]
-  apply sum_le_sum
-  intro i _
-  exact encard_pol_to_eval_image_deg_n_le (X := X) i
-
-lemma card_Ω_multilinear_set :
-    #(Ω_multilinear_set (X := X) L).toFinset ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
-  have h := (encard_Ω_multilinear_set (X := X) L)
-  have h2 := Set.encard_coe_eq_coe_finsetCard (Ω_multilinear_set (X := X) L).toFinset
-  rw [Set.coe_toFinset] at h2
-  rw [h2] at h
-  norm_cast at h
+/- This theorem shows that the number of all multilinear monic monomials wtih degree n is
+∑ m ∈ Finset.range (n + 1), Nat.choose #X m.-/
+theorem card_Ω_multilinear_set :
+    #(Ω_multilinear_set (X := X) L).toFinset = ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := calc
+  _ = #(Ω_ml_pol_deg_le_n_set (X := X) #L).toFinset := by
+    have h := pol_to_eval_bij (X := X) L
+    simp only [Set.toFinset_card]
+    apply Fintype.card_congr
+    exact (Set.BijOn.equiv pol_to_eval (pol_to_eval_bij (X := X) L)).symm
+  _ = #((Finset.range (#L + 1)).disjiUnion (fun m => (Ω_ml_pol_deg_n_set (X := X) m).toFinset)
+      (disjoint_Ω_ml_pol_deg_n_set L)) := by
+    congr
+    simp only [Ω_multilinear_set_union_by_deg, disjiUnion_eq_biUnion, coe_biUnion, coe_range,
+      Set.mem_Iio, Set.coe_toFinset]
+    ext f
+    simp only [Ω_ml_pol_deg_le_n_set, Set.mem_toFinset, Set.mem_setOf_eq, Ω_ml_pol_deg_n_set,
+      mem_biUnion, mem_range, existsAndEq, true_and, and_congr_left_iff, forall_exists_index]
+    intro _ _
+    exact Iff.symm Nat.lt_add_one_iff
+  _ = ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
+    rw [Finset.card_disjiUnion]
+    congr
+    ext m
+    exact card_Ω_ml_pol_deg_n_set m
 
 -- The span of Ω_multilinear_set
 def Ω_multilinear_span : Submodule ℝ (@Ω α X → ℝ) := Submodule.span ℝ (Ω_multilinear_set L)
 
+-- Show that the rank of the span of Ω_multilinear_set is ≤ its cardinality
 lemma dim_Ω_multilinear_span : Module.rank ℝ (Ω_multilinear_span (X := X) L) ≤
     ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
   have h := rank_span_finset_le (R := ℝ) (Ω_multilinear_set (X := X) L).toFinset
   rw [Set.coe_toFinset] at h
-  have h2 := (card_Ω_multilinear_set (X := X) L)
-  exact le_trans h (Nat.cast_le.mpr h2)
+  rw [← card_Ω_multilinear_set]
+  exact h
 
+-- Show that any monomials of degree no greater than #L is in the span of Ω_multilinear_set.
 omit [DecidableEq α] in
 lemma monomial_in_Ω_span (v : X →₀ ℕ) (hv : (v.sum fun x e ↦ e) ≤ #L):
     pol_to_eval (MvPolynomial.monomial (R := ℝ) v 1) ∈ Ω_multilinear_span L := by
@@ -484,6 +569,7 @@ lemma monomial_in_Ω_span (v : X →₀ ℕ) (hv : (v.sum fun x e ↦ e) ≤ #L)
     exact hv
   · rfl
 
+-- Show that the characteristic polynomial is also in the span of Ω_multilinear_set.
 lemma Ω_char_pol_spec (i : Fin #F): Ω_char_pol F L i ∈ Ω_multilinear_span L := by
   rw [Ω_char_pol_eq, MvPolynomial.as_sum (char_pol F L i), pol_to_eval_linear]
   apply Submodule.sum_mem
@@ -501,6 +587,7 @@ lemma Ω_char_pol_spec (i : Fin #F): Ω_char_pol F L i ∈ Ω_multilinear_span L
   apply MvPolynomial.le_totalDegree
   exact hv
 
+-- Show that the span of the characteristic polynomial is included in the span of Ω_multilinear_set.
 lemma span_to_R_le_span_ml : (Ω_char_pol_span F L) ≤ Ω_multilinear_span L := by
   unfold Ω_char_pol_span
   suffices Set.range (Ω_char_pol F L) ⊆ (Ω_multilinear_span (X := X) L) by
@@ -511,6 +598,7 @@ lemma span_to_R_le_span_ml : (Ω_char_pol_span F L) ≤ Ω_multilinear_span L :=
   subst hy
   exact Ω_char_pol_spec F L y
 
+-- Show that the rank of the characteristic polynomial is ≤ the cardinality of Ω_multilinear_set.
 lemma dim_span_to_R_le :
     Module.rank ℝ (Ω_char_pol_span F L) ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
   exact Preorder.le_trans (Module.rank ℝ (Ω_char_pol_span F L))
@@ -553,6 +641,7 @@ lemma char_pol_spec_2 (i j: Fin #F) (hneq : i ≠ j) (hji : j < i)
       simp only [@SetCoe.ext_iff] at h
       exact (neq_F_sorted F i j hneq) h
 
+-- A Fin sum can be seperated in three parts : sum less than, equal to, and greater than a number
 lemma Fin_sum_seperated (n : ℕ) (f : Fin n → ℝ) (i : Fin n) :
     ∑ x, f x = f i + ∑ x with x < i, f x + ∑ x with i < x, f x:= by
   rw [Fintype.sum_eq_add_sum_compl i (fun x ↦ f x)]
@@ -569,6 +658,7 @@ lemma Fin_sum_seperated (n : ℕ) (f : Fin n → ℝ) (i : Fin n) :
   obtain ⟨hx1, hx2⟩ := hx
   exact lt_asymm hx1 hx2
 
+-- Show that the characteristic polynomials are in fact linear independent
 lemma Ω_char_pol_lin_indep (hintersect : intersecting F L) :
     LinearIndependent ℝ (Ω_char_pol F L) := by
   by_contra hcon
