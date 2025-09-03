@@ -74,8 +74,9 @@ lemma set_card_map (i: Finset.range (s + 1)) (B : { x // x ∈ powersetCard i X 
       (Nat.le_of_eq (id (Eq.symm hx.2.1)))), hx.2.2⟩ ⟩
 
 
-lemma N_transpose_N_eq_coe_N (i: Finset.range (s + 1)) : (incidence_matrix X p i s) * (incidence_matrix X p s k) =
-  (Nat.choose (k - i) (s - i)) • (incidence_matrix X p i k) :=by
+lemma N_transpose_N_eq_coe_N (i: Finset.range (s + 1)) : (incidence_matrix X p i s)
+    * (incidence_matrix X p s k) =
+    (Nat.choose (k - i) (s - i)) • (incidence_matrix X p i k) :=by
   funext B A
   rw [Matrix.mul_apply]
   simp_rw [Matrix.smul_apply, incidence_mul_subset]
@@ -136,14 +137,10 @@ lemma binomVec_linearIndependent :
 
 lemma binomVec_span_top :
   ⊤ ≤ Submodule.span (ZMod p) (Set.range (fun i : Finset.range (s + 1) => (binomVec (s:=s) p i : polyLe p s))) := by
-  -- i.e. the family spans `polyLe s`
-  admit
+  sorry
 
 noncomputable def binomBasis : Module.Basis (Finset.range (s + 1)) (ZMod p) (polyLe p s):=by
   exact Module.Basis.mk (binomVec_linearIndependent s p) (binomVec_span_top s p)
-
--- ∑ (i:b), aᵢ • i
-
 
 
 lemma exists_coe_M_poly (f: Polynomial (ZMod p)) (hf: Polynomial.natDegree f ≤ s):
@@ -196,6 +193,35 @@ lemma dim_V_leq_binom_n_s : (Module.finrank (ZMod p) (vector_space_on_N X s k p)
 instance: Module.Finite (ZMod p) (vector_space_on_N X s k p):=
   FiniteDimensional.finiteDimensional_submodule (vector_space_on_N X s k p)
 
+instance (a: ZMod p) (ha: a ≠ 0): Invertible a := by exact invertibleOfNonzero ha
+
+lemma row_N_i_k_in_V (i: Finset.range (s + 1)) (u: powersetCard i X ):
+    incidence_matrix X p i k u ∈ vector_space_on_N X s k p := by
+  have h1: ((Nat.choose (k - i) (s - i)) • (incidence_matrix X p i k)) u
+    ∈ vector_space_on_N X s k p := by
+    rw [← N_transpose_N_eq_coe_N, Matrix.mul_apply_eq_vecMul, Matrix.vecMul_eq_sum]
+    apply Submodule.sum_mem
+    intro v hv
+    apply Submodule.smul_mem
+    unfold vector_space_on_N
+    unfold Matrix.row
+    rw [@Submodule.mem_span_range_iff_exists_fun]
+    use fun (x: powersetCard s X)=> if x = v then (1: ZMod p) else 0
+    simp only [univ_eq_attach, ite_smul, one_smul, zero_smul, sum_ite_eq', mem_attach, ↓reduceIte]
+  rw [Pi.smul_def] at h1
+  simp only [nsmul_eq_mul] at h1
+  have h2:  (Nat.cast (R := ZMod p) ((k - i).choose (s - i)))⁻¹ •
+    ((Nat.cast (R := ZMod p) ((k - i).choose (s - i))) • incidence_matrix X p (↑i) k u)
+    ∈ vector_space_on_N X s k p :=
+    by exact Submodule.smul_mem (vector_space_on_N X s k p) (↑((k - ↑i).choose (s - ↑i)))⁻¹ h1
+  rw [smul_smul] at h2
+  by_cases hzero: Nat.cast (R := ZMod p) ((k - i).choose (s - i)) = 0
+  · --TODO
+    sorry
+  · have hinvertible: Invertible (Nat.cast (R := ZMod p) ((k - i).choose (s - i))) :=
+      instInvertibleZModOfNeOfNat_rayChaudhuriWilson p (↑((k - ↑i).choose (s - ↑i))) hzero
+    rw [inv_mul_cancel_of_invertible] at h2
+    exact (Submodule.smul_mem_iff'' (vector_space_on_N X s k p)).mp h1
 
 
 lemma finrank_span_row_M_leq_dim_V (a : Finset.range (s + 1) → ZMod p):
@@ -205,8 +231,19 @@ lemma finrank_span_row_M_leq_dim_V (a : Finset.range (s + 1) → ZMod p):
   rw [Submodule.span_le, Set.range_subset_iff]
   intro r
   unfold gram_M
-
-  sorry
+  unfold Matrix.row
+  rw [sum_fn, SetLike.mem_coe]
+  apply Submodule.sum_mem
+  intro i hi
+  rw [Pi.smul_def]
+  simp only
+  apply Submodule.smul_mem
+  unfold Gram_matrix
+  rw [Matrix.mul_apply_eq_vecMul, Matrix.vecMul_eq_sum]
+  apply Submodule.sum_mem
+  intro u hu
+  apply Submodule.smul_mem
+  exact (row_N_i_k_in_V X s k p i u)
 
 lemma rank_M_leq_rank_V (a : Finset.range (s + 1) → ZMod p): Matrix.rank (gram_M X s k p a)
   ≤ (Module.finrank (ZMod p) (vector_space_on_N X s k p)) :=by
