@@ -36,13 +36,17 @@ characteristic vector v_A is never in the support of (char_p B).eval for any B. 
 requirement for the theorem is then reached and the functions can be proven to be
 linear independent.
 -/
-theorem sorted_linearIndepOn {α : Type u_1} {ι : Type u_2} {s : Set ι} [Fintype s]
+-- ∃ x ∈ Finsupp.supported R R s, ∑ i ∈ x.support, x i • S i = 0 ∧ ¬x = 0
+
+/--NEXT: let α be the set of all Ω_char_vec _ (hF _ (F_indexed i).2)--/
+
+theorem sorted_linearComb_zero {α : Type u_1} {ι : Type u_2} {s : Set ι} [Fintype s]
     (S : ι → (α → R)) (Sn : ι → ℝ) (h : ∀ f ∈ s, ∃ a ∈ (S f).support, ∀ g ∈ s,
-    Sn f ≤ Sn g → f ≠ g → a ∉ (S g).support) : LinearIndepOn R S s := by
+    Sn f ≤ Sn g → f ≠ g → a ∉ (S g).support) :
+    ∀ f ∈ Finsupp.supported R R s, ∑ i ∈ f.support, f i • S i = 0 → f = 0 := by
   by_contra hcon
-  rw [@linearDepOn_iff] at hcon
-  obtain ⟨g, hg, hi⟩ := hcon
-  obtain ⟨hi, hgne⟩ := hi
+  simp at hcon
+  obtain ⟨g, hg, hi, hgne⟩ := hcon
   have : DecidableEq ι := by exact Classical.typeDecidableEq ι
   have : DecidableEq (α → ℝ) := by exact Classical.typeDecidableEq (α → ℝ)
   have hs := (Finset.image Sn g.support).min'_mem (by
@@ -82,9 +86,22 @@ theorem sorted_linearIndepOn {α : Type u_1} {ι : Type u_2} {s : Set ι} [Finty
     simp only [Function.mem_support, ne_eq] at has
     exact has hi
 
+theorem sorted_linearIndepOn {α : Type u_1} {ι : Type u_2} {s : Set ι} [Fintype s]
+    (S : ι → (α → R)) (Sn : ι → ℝ) (h : ∀ f ∈ s, ∃ a ∈ (S f).support, ∀ g ∈ s,
+    Sn f ≤ Sn g → f ≠ g → a ∉ (S g).support) : LinearIndepOn R S s := by
+  by_contra hcon
+  rw [@linearDepOn_iff] at hcon
+  suffices ¬ (∃ f ∈ Finsupp.supported R R s, ∑ i ∈ f.support, f i • S i = 0 ∧ f ≠ 0) by
+    exact this hcon
+  simp only [ne_eq, not_exists, not_and, not_not]
+  exact sorted_linearComb_zero S Sn h
+
 variable {α : Type} (n : ℕ) [DecidableEq α] {X: Finset α} {F: Finset (Finset α)} (L : Finset ℕ)
 
 def uniform (F: Finset (Finset α)) (k : ℕ): Prop := ∀ A ∈ F, #A = k
+
+def weak_uniform (F: Finset (Finset α)) (K : Finset ℕ) (L : Finset ℕ) :=
+  (F.image card) ⊆ K ∧ ∀ A ∈ K, A > (#L - #(F.image card))
 
 def weak_intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
   ∀ A ∈ F, ∀ B ∈ F, A ≠ B → #(A ∩ B) ∈ L
@@ -150,6 +167,45 @@ lemma uniform_intersecting_card_le (F: Finset (Finset α)) (L : Finset ℕ) (hu 
     refine Nat.lt_of_lt_of_le this ?_
     exact Nat.le_of_eq (hu A hA)
 
+lemma uniform_weak_uniform (hn : 0 < n) (hsi : intersecting F L) :
+    uniform F n → weak_uniform F {n} L := by
+  intro hu
+  have hF : ¬ F = ∅ → image card F = {n} := by
+    intro hF
+    ext x
+    simp only [mem_image, mem_singleton, forall_exists_index, and_imp]
+    constructor
+    · rintro ⟨A, hA, rfl⟩; exact hu A hA
+    · rintro ⟨rfl⟩
+      rw [@eq_empty_iff_forall_not_mem] at hF
+      simp only [not_forall, Decidable.not_not] at hF
+      obtain ⟨a, ha⟩ := hF
+      use a
+      exact ⟨ha, hu a ha⟩
+  by_cases hL : 0 < #L
+  · by_cases hexist : ∃ a, a ∈ F
+    · have hleft : image card F = {n} := by
+        rw [← @not_forall_not, ← eq_empty_iff_forall_not_mem] at hexist
+        exact hF hexist
+      constructor
+      · rw [hleft]
+      · simp only [mem_singleton, hleft, card_singleton, gt_iff_lt, forall_eq]
+        exact Nat.sub_one_lt_of_le hL (uniform_intersecting_card_le n F L hu hsi)
+    · simp only [not_exists, ← @eq_empty_iff_forall_not_mem] at hexist
+      subst hexist
+      simp only [intersecting, not_mem_empty, ne_eq, false_and, exists_const, and_self,
+        Set.setOf_false, Set.toFinset_empty] at hsi
+      subst hsi
+      simp at hL
+  · simp only [card_pos, not_nonempty_iff_eq_empty] at hL
+    subst hL
+    constructor
+    · simp only [subset_singleton_iff, image_eq_empty]
+      by_cases hempt : F = ∅
+      · exact Or.inl hempt
+      · simp [hF, hempt]
+    · simp [hn]
+
 lemma intersecting_weak_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
     intersecting F L → weak_intersecting F L := by
   rintro hL A hA B hB hne
@@ -159,7 +215,7 @@ lemma intersecting_weak_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
   simp only [hA, true_and]
   use B
 
-def intersecting_exist_strict_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
+def weak_intersecting_exist_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
     weak_intersecting F L → ∃ Ls ⊆ L, intersecting F Ls := by
   unfold intersecting weak_intersecting
   intro h
@@ -192,7 +248,7 @@ noncomputable def Ω_char_vec (A : Finset α) (hA : A ⊆ X):
   @Ω R _ α X := ⟨char_vec A hA, char_vec_mem_Ω A hA⟩
 
 -- Show that the inner product of characteristic vectors gives the card of the set intersection.
-theorem char_vec_spec (A B : Finset α) (hA : A ⊆ X) (hB : B ⊆ X) :
+lemma char_vec_spec (A B : Finset α) (hA : A ⊆ X) (hB : B ⊆ X) :
     (char_vec A hA) ⬝ᵥ (char_vec (R := R) B hB) = #(A ∩ B) := by
   have h : (char_vec A hA) ⬝ᵥ (char_vec (R := R) B hB) =
       ∑ a : X, if a.val ∈ A ∩ B then 1 else 0 := by
@@ -636,74 +692,6 @@ theorem card_Ω_multilinear_set : #(Ω_multilinear_set (R := R) (X := X) n).toFi
   apply Fintype.card_congr
   exact (ml_equiv_Ω_ml n).symm
 
--- A Fin sum can be seperated in three parts : sum less than, equal to, and greater than a number
-lemma Fin_sum_seperated (n : ℕ) (f : Fin n → ℝ) (i : Fin n) :
-    ∑ x, f x = f i + ∑ x with x < i, f x + ∑ x with i < x, f x:= by
-  rw [Fintype.sum_eq_add_sum_compl i (fun x ↦ f x)]
-  have h : ({i}ᶜ : Finset (Fin n)) =
-      ({x | x < i}: Finset (Fin n)) ∪ ({x | i < x} : Finset (Fin n)) := by
-    ext x
-    simp
-  rw [Mathlib.Tactic.Ring.add_pf_add_lt, h]
-  rw [eq_comm]
-  refine sum_union (f := f) ?_
-  rw [@disjoint_iff_inter_eq_empty, @eq_empty_iff_forall_not_mem]
-  intro x hx
-  simp only [gt_iff_lt, mem_inter, mem_filter, mem_univ, true_and] at hx
-  obtain ⟨hx1, hx2⟩ := hx
-  exact lt_asymm hx1 hx2
-
-/- This theorem shows that the (monic multilinear polynomial of degree less than n) as evaluation
-  function is independent. The rough idea of proving this is to assume exist a monomial p having
-  non-zero coefficient with the least total degree and plug in the Ω_char_vec of the support set
-  of the monomial's degree. Contradiction since ∑ x ∈ support, f x • (pol_to_eval x) v = 0 =>
-  ∑ x ∈ support, f x • (pol_to_eval x) v = f p • (pol_to_eval p) v = f p • 1 = 0 -/
-theorem Ω_multilinear_set_lin_indep :
-    LinearIndepOn R id (Ω_multilinear_set (R := R) (X := X) n) := by
-  rw [Ω_multilinear_set_eq]
-  refine LinearIndepOn.id_image ?_
-  apply sorted_linearIndepOn (Sn := fun x => x.totalDegree)
-  intro f hf
-  simp only [ml_pol_deg_le_n_set, Set.mem_setOf_eq] at hf
-  obtain ⟨hfd, fS, hfS⟩ := hf
-  use Ω_char_vec (Finset.image Subtype.val fS.support) (by
-    intro a ha
-    simp only [mem_image, Finsupp.mem_support_iff, ne_eq, Subtype.exists, exists_and_right,
-      exists_eq_right] at ha
-    obtain ⟨hx, _⟩ := ha
-    exact hx)
-  constructor
-  · unfold Ω_char_vec char_vec
-    simp only [hfS, pol_to_eval_monomial_eq, pol_power_shrink_support_linear, image_val,
-      Multiset.mem_dedup, Subtype.val_injective, Multiset.mem_map_of_injective, mem_val,
-      Finsupp.mem_support_iff, ne_eq, ite_not, Function.mem_support, ite_eq_right_iff, one_ne_zero,
-      imp_false, not_not]
-    intro a ha
-    simp only [Function.mem_support, ne_eq, ite_eq_left_iff, one_ne_zero, imp_false,
-      Decidable.not_not]
-    exact Finsupp.mem_support_iff.mp ha
-  intro g hg hfleg hfneg
-  obtain ⟨hgd, gS, hgS⟩ := hg
-  unfold Ω_char_vec char_vec
-  simp only [hgS, pol_to_eval_monomial_eq, Function.mem_support, ne_eq, Decidable.not_not]
-  simp only [pol_power_shrink_support_linear, image_val, Multiset.mem_dedup, Subtype.val_injective,
-    Multiset.mem_map_of_injective, mem_val, Finsupp.mem_support_iff, ne_eq, ite_not, eq_mp_eq_cast,
-    ite_eq_right_iff, one_ne_zero, imp_false, not_not]
-  refine Set.not_subset.mpr ?_
-  simp only [mem_coe, Finsupp.mem_support_iff, ne_eq, Function.mem_support, ite_eq_left_iff,
-    one_ne_zero, imp_false, Decidable.not_not, Subtype.exists]
-  suffices ¬ fS.support ≥ gS.support by
-    simp only [ge_iff_le, le_eq_subset, not_subset, Finsupp.mem_support_iff, ne_eq,
-      Decidable.not_not, Subtype.exists] at this
-    exact this
-  by_contra hcon
-  simp only [hfS, ne_eq, one_ne_zero, not_false_eq_true, MvPolynomial.totalDegree_monomial, ←
-    card_pol_power_shrink_support, pol_power_shrink_support_linear, hgS, Nat.cast_le] at hfleg
-  have h : fS.support = gS.support := by exact (eq_of_subset_of_card_le hcon hfleg).symm
-  rw [pol_power_shrink_support_eq_iff] at h
-  rw [h, ← hgS] at hfS
-  exact hfneg hfS
-
 -- The span of Ω_multilinear_set
 def Ω_multilinear_span : Submodule R (@Ω R _ α X → R) := Submodule.span R (Ω_multilinear_set #L)
 
@@ -741,15 +729,12 @@ lemma Ω_multilinear_span_deg_le_mem (f : MvPolynomial X R) (hdeg : f.totalDegre
   exact hv
 
 -- Show that the rank of the span of Ω_multilinear_set is = its cardinality
-lemma dim_Ω_multilinear_span : Module.finrank R (Ω_multilinear_span (R := R) (X := X) L) =
+lemma dim_Ω_multilinear_span : Module.rank R (Ω_multilinear_span (R := R) (X := X) L) ≤
     ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
-  rw [← card_Ω_multilinear_set (R := R), Set.toFinset_card]
-  have h := finrank_span_eq_card (R := R) (Ω_multilinear_set_lin_indep (X := X) #L)
-  rw [← h]
-  simp [Ω_multilinear_span]
-  have h : Ω_multilinear_set (X := X) #L
-      = Set.range fun (x : (Ω_multilinear_set (R := R) #L) ) ↦ x.val := by simp
-  rw [← h]
+  have h := rank_span_finset_le (R := R) (Ω_multilinear_set (R := R) (X := X) #L).toFinset
+  rw [Set.coe_toFinset] at h
+  rw [← card_Ω_multilinear_set (R := R)]
+  exact h
 
 variable (hF : ∀ A ∈ F, A ⊆ X)
 
@@ -830,12 +815,10 @@ lemma span_to_R_le_span_ml : (Ω_char_pol_span L hF) ≤ Ω_multilinear_span (R 
 -- Show that the rank of the characteristic polynomial is ≤ the cardinality of Ω_multilinear_set.
 lemma dim_span_to_R_le : Module.rank R (Ω_char_pol_span (R := R) L hF)
     ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
-  have : Module.Finite R (Ω_multilinear_span (R := R) (X := X) L) := by
-    unfold Ω_multilinear_span
-    refine Module.Finite.span_of_finite R ?_
-    exact Set.toFinite (Ω_multilinear_set #L)
-  rw [← dim_Ω_multilinear_span (R := R) L, Module.finrank_eq_rank]
-  exact Submodule.rank_mono (span_to_R_le_span_ml L hF)
+  exact Preorder.le_trans (Module.rank R (Ω_char_pol_span L hF))
+    (Module.rank R (Ω_multilinear_span (X := X) L))
+    (↑(∑ m ∈ range (#L + 1), (#X).choose m))
+    (Submodule.rank_mono (span_to_R_le_span_ml L hF)) (dim_Ω_multilinear_span L)
 
 -- Show that the characteristic polynomials are in fact linear independent
 lemma Ω_char_pol_lin_indep (hintersect : weak_intersecting F L)
@@ -1038,72 +1021,54 @@ theorem Lemma_2_1 (f : @Ω R _ α X → R) (hf : ∀ I , (hI : I ⊆ X) → #I �
 
 namespace Ray_Chaudhuri_Wilson
 
--- The characteristic polynomial of a set A_i
-noncomputable def char_pol (A : F) : MvPolynomial X ℝ :=
-  ∏ l ∈ L with l ≠ #A.1, (∑ m : X, ((char_vec (R := ℝ) A (hF A A.2) m) • (MvPolynomial.X m))
-  - (MvPolynomial.C l : MvPolynomial X ℝ) )
+
+
+-- The characteristic polynomial of a set A
+noncomputable def char_pol (A : F) : MvPolynomial X R :=
+  ∏ l ∈ L with l < #A.val, (∑ m : X, ((char_vec (R := R) A (hF A A.2) m) • (MvPolynomial.X m))
+  - (MvPolynomial.C l : MvPolynomial X R) )
 
 -- Show that the total degree of the characteristic polynomial is no greater than #L
-lemma char_pol_degree (A : F): (char_pol L hF A).totalDegree ≤ #L := by
+lemma char_pol_degree (A : F): (char_pol (R := R) L hF A).totalDegree ≤ #L := by
   unfold char_pol
   have hAX := hF A A.2
-  have h : (∑ m, (char_vec (R := ℝ) A hAX m) • MvPolynomial.X m : MvPolynomial X ℝ).totalDegree
+  have h : (∑ m, (char_vec (R := R) A hAX m) • MvPolynomial.X m : MvPolynomial X R).totalDegree
       ≤ 1 := by
     apply MvPolynomial.totalDegree_finsetSum_le
     intro x hx
     calc
-    _ ≤ (MvPolynomial.X x).totalDegree :=
-      MvPolynomial.totalDegree_smul_le (char_vec A hAX x) (MvPolynomial.X x : MvPolynomial X ℝ)
+    _ ≤ (MvPolynomial.X x).totalDegree := MvPolynomial.totalDegree_smul_le
+      (char_vec (R := R) A hAX x) (MvPolynomial.X x : MvPolynomial X R)
     _ = 1 := by apply MvPolynomial.totalDegree_X
-  have h (l : ℕ): (∑ m, char_vec A hAX m • MvPolynomial.X m
-      - (MvPolynomial.C l : MvPolynomial X ℝ)).totalDegree ≤ 1 := calc
-    _ = (∑ m, char_vec A hAX m • MvPolynomial.X m
-      + (MvPolynomial.C (-l) : MvPolynomial X ℝ)).totalDegree := by
+  have h (l : ℕ): (∑ m, char_vec (R := R) A hAX m • MvPolynomial.X m
+      - (MvPolynomial.C l : MvPolynomial X R)).totalDegree ≤ 1 := calc
+    _ = (∑ m, char_vec (R := R) A hAX m • MvPolynomial.X m
+      + (MvPolynomial.C (-l) : MvPolynomial X R)).totalDegree := by
         rw [MvPolynomial.C_neg, Mathlib.Tactic.RingNF.add_neg]
     _ ≤ max
-      (∑ m, char_vec (R := ℝ) A hAX m • MvPolynomial.X m : MvPolynomial X ℝ).totalDegree
-      (MvPolynomial.C (-l) : MvPolynomial X ℝ).totalDegree := by
+      (∑ m, char_vec (R := R) A hAX m • MvPolynomial.X m : MvPolynomial X R).totalDegree
+      (MvPolynomial.C (-l) : MvPolynomial X R).totalDegree := by
       apply MvPolynomial.totalDegree_add
     _ ≤ _ := by
       simp only [MvPolynomial.totalDegree_C, zero_le, sup_of_le_left]
       exact h
   calc
-  _ ≤ ∑ l ∈ L with l ≠ #A.1,
-    (∑ m : X, (char_vec (R := ℝ) A hAX m) • MvPolynomial.X m
-    - (MvPolynomial.C l : MvPolynomial X ℝ)).totalDegree := by
+  _ ≤ ∑ l ∈ L with l < #A.val,
+    (∑ m : X, (char_vec (R := R) A hAX m) • MvPolynomial.X m
+    - (MvPolynomial.C l : MvPolynomial X R)).totalDegree := by
     apply MvPolynomial.totalDegree_finset_prod
-  _ ≤ ∑ l ∈ L with l ≠ #A.1, 1 := by exact sum_le_sum fun i_1 a ↦ h i_1
-  _ ≤ #L := by
-    rw [← card_eq_sum_ones]
-    apply card_filter_le
+  _ ≤ ∑ l ∈ L with l < #A.val, 1 := by exact sum_le_sum fun i_1 a ↦ h i_1
+  _ = #{l ∈ L | l < #A.val} := (card_eq_sum_ones {l ∈ L | l < #A.val}).symm
+  _ ≤ _ := card_filter_le L fun l ↦ l < #A.val
 
 -- Rewrite the evaluation of characteristic polynomial as a function
-lemma char_pol_eval_eq (A : F) (x : X → ℝ): (char_pol L hF A).eval x
-    = ∏ l ∈ L with l ≠ #A.1, ((char_vec A (hF A A.2)) ⬝ᵥ x - l) := by
+lemma char_pol_eval_eq (A : F) (x : X → R): (char_pol L hF A).eval x
+    = ∏ l ∈ L with l < #A.val, ((char_vec A (hF A A.2)) ⬝ᵥ x - l) := by
   unfold char_pol
   rw [@MvPolynomial.eval_prod]
   apply Finset.prod_congr rfl
   intro l hl
   simp [(· ⬝ᵥ ·)]
-
-noncomputable def Finset_indexed {β : Type u_1} (X : Finset β): Fin #X → X :=
-  fun i => ⟨X.toList[i], by simp [← Finset.mem_toList]⟩
-
-omit [DecidableEq α] in
-lemma Finset_indexed_inj : Function.Injective (Finset_indexed X) := by
-  have hpair_get : ∀ (i j : Fin #X), i < j → (Finset_indexed X) i ≠ (Finset_indexed X) j := by
-    have h := (Finset.nodup_toList X)
-    unfold List.Nodup at h
-    rw [@List.pairwise_iff_get] at h
-    intro i j
-    intro hij
-    exact Subtype.coe_ne_coe.mp (h ⟨i, by simp⟩ ⟨j, by simp⟩ hij)
-  intro a b hab
-  by_contra hcon
-  rw [← Ne.eq_def, ne_iff_lt_or_gt] at hcon
-  rcases hcon with hl | hr
-  · exact hpair_get ⟨a, by simp⟩ ⟨b, by simp⟩ hl hab
-  · exact hpair_get ⟨b, by simp⟩ ⟨a, by simp⟩ hr hab.symm
 
 noncomputable def F_indexed := (Finset.equivFinOfCardEq (n := #F) rfl).symm
 
@@ -1123,7 +1088,7 @@ lemma Ω_char_pol_spec (i : Fin #F): Ω_char_pol L hF i ∈ Ω_multilinear_span 
 -- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
 lemma char_pol_spec_1 (i : Fin #F): Ω_char_pol L hF i
     (Ω_char_vec _ (hF _ (F_indexed i).2)) ≠ 0 := by
-  suffices (char_pol L hF (F_indexed i)).eval (char_vec _ (hF _ (F_indexed i).2)) ≠ 0 by
+  suffices (char_pol (R := ℝ) L hF (F_indexed i)).eval (char_vec _ (hF _ (F_indexed i).2)) ≠ 0 by
     unfold Ω_char_pol Ω_char_vec
     exact this
   rw [char_pol_eval_eq L hF _ (char_vec _ (hF _ (F_indexed i).2))]
@@ -1133,61 +1098,78 @@ lemma char_pol_spec_1 (i : Fin #F): Ω_char_pol L hF i
   norm_cast
   rw [inter_self, Int.subNat_eq_zero_iff]
   simp only [ne_eq, mem_filter] at ha
-  exact fun a_1 ↦ ha.2 a_1.symm
+  exact Nat.ne_of_lt' ha.2
 
 /- Show that the characteristic polynomial is zero for
 the characteristic vector of B with lower cardinality.-/
-lemma char_pol_spec_2 (i j : Fin #F) (hneq : i ≠ j) (huniform : uniform F n) (hintersect :
-    intersecting F L): Ω_char_pol L hF i (Ω_char_vec _ (hF _ (F_indexed j).2)) = 0 := by
+lemma char_pol_spec_2 (hintersect : weak_intersecting F L)
+    (i j : Fin #F) (hneq : i ≠ j) (hji : #(F_indexed j).val ≤ #(F_indexed i).val) :
+    Ω_char_pol L hF i (Ω_char_vec _ (hF _ (F_indexed j).2)) = 0 := by
+  unfold weak_intersecting at hintersect
   let A := (F_indexed i)
   let B := (F_indexed j)
-  suffices (char_pol L hF A).eval (char_vec B (hF B B.2)) = 0 by
+  suffices (char_pol L hF A).eval (char_vec B (hF B B.2)) = (0 : ℝ) by
     simp only [Ω_char_pol, Ω_char_vec, this, B, A]
   have hneq : A ≠ B := by
     by_contra hcon
     exact hneq (Equiv.injective F_indexed hcon)
   rw [char_pol_eval_eq L hF A (char_vec B (hF B B.2))]
-  have hintersect := intersecting_weak_intersecting hintersect
-  unfold weak_intersecting at hintersect
   refine prod_eq_zero_iff.mpr ?_
   use #(A.val ∩ B.val)
   rw [char_vec_spec, sub_self, propext (and_iff_left rfl), mem_filter]
   constructor
   · refine hintersect A A.2 B B.2 ?_
     exact Subtype.coe_ne_coe.mpr hneq
-  · refine Nat.ne_of_lt (card_lt_card ?_)
+  · refine card_lt_card ?_
     rw [@Finset.ssubset_iff_subset_ne]
     constructor
     · exact inter_subset_left
     · rw [ne_eq, inter_eq_left]
       by_contra hcon
-      have hneq : A.1 ≠ B.1 := Subtype.coe_ne_coe.mpr hneq
-      have hneg : #A.1 < #B.1 := card_lt_card (HasSubset.Subset.ssubset_of_ne hcon hneq)
-      unfold uniform at huniform
-      simp [huniform] at hneg
+      have h := eq_of_subset_of_card_le hcon hji
+      simp only [@SetCoe.ext_iff] at h
+      exact hneq h
 
-noncomputable def swallow_pol (I : (ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1))) :=
-  (I.val) * ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - n)
+variable {K : Finset ℕ}
+
+noncomputable def K_indexed (K : Finset ℕ) := Fintype.equivFinOfCardEq
+    (h := ((by simp) : Fintype.card K = #K)).symm
+
+noncomputable def swallow_pol (I : (@ml_pol_deg_le_n_set ℝ _ _ (#L - #K) X)) :=
+  (I.val) * ∏ i : Fin #K, ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i)
 
 omit [DecidableEq α] in
-lemma swallow_pol_degree (hL0 : 0 < #L) (I : (ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1)))
-    : (swallow_pol n L I).totalDegree ≤ #L := by
-  suffices I.val.totalDegree + ((∑ j, MvPolynomial.X (R := ℝ) j) - n).totalDegree ≤ #L by
+lemma swallow_pol_degree (hL : #K ≤ #L) (I : (@ml_pol_deg_le_n_set ℝ
+    _ _ (#L - #K) X)) : (swallow_pol L I).totalDegree ≤ #L := by
+  suffices I.val.totalDegree + (∏ i : Fin #K,
+      ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i)).totalDegree ≤ #L by
     refine le_trans ?_ this
     apply MvPolynomial.totalDegree_mul
   have hI := I.2
   simp only [ml_pol_deg_le_n_set, Set.mem_setOf_eq] at hI
-  suffices ((∑ j : X, MvPolynomial.X (R := ℝ) j) - n).totalDegree ≤ 1 by
+  suffices (∏ i : Fin #K,
+      ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i)).totalDegree ≤ #K by
     have hans := add_le_add hI.left this
-    obtain ⟨lpred, hlp⟩ := Nat.exists_add_one_eq.mpr hL0
-    simp [← hlp] at hans
-    rwa [hlp] at hans
+    obtain ⟨lpred, hlp⟩ := Nat.exists_eq_add_of_le hL
+    simp only [univ_eq_attach, hlp, add_tsub_cancel_left] at hans
+    rw [Nat.add_comm] at hlp
+    rwa [← hlp] at hans
+  suffices ∀ i, ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i).totalDegree ≤ 1 by
+    calc
+    _ ≤ ∑ i, (∑ j : X, MvPolynomial.X (R := ℝ) j - ((K_indexed K) i)).totalDegree := by
+      apply MvPolynomial.totalDegree_finset_prod
+    _ ≤ ∑ i : Fin #K, 1 := by
+      apply Finset.sum_le_sum
+      simpa only [mem_univ, this, forall_const]
+    _ = #K := by simp
+  intro i
   calc
-  _ = (∑ j : X, MvPolynomial.X j - MvPolynomial.C (R := ℝ) n).totalDegree := by rw [map_natCast]
-  _ = (∑ j : X, MvPolynomial.X j + (MvPolynomial.C (-n) : MvPolynomial X ℝ)).totalDegree := by
-    rw [MvPolynomial.C_neg, Mathlib.Tactic.RingNF.add_neg]
-  _ ≤ max (∑ j, MvPolynomial.X j).totalDegree (MvPolynomial.C (-n : ℝ)).totalDegree := by
-    apply MvPolynomial.totalDegree_add
+  _ = (∑ j : X, MvPolynomial.X j - MvPolynomial.C (R := ℝ) (K_indexed K i)).totalDegree := by
+    rw [map_natCast]
+  _ = (∑ j : X, MvPolynomial.X j + (MvPolynomial.C (-K_indexed K i)
+      : MvPolynomial X ℝ)).totalDegree := by rw [MvPolynomial.C_neg, Mathlib.Tactic.RingNF.add_neg]
+  _ ≤ max (∑ j, MvPolynomial.X j).totalDegree (MvPolynomial.C
+      (-K_indexed K i : ℝ)).totalDegree := by apply MvPolynomial.totalDegree_add
   _ = (∑ j : X, MvPolynomial.X (R := ℝ) j).totalDegree := by
     simp only [MvPolynomial.totalDegree_C, univ_eq_attach, zero_le, sup_of_le_left]
   _ ≤ 1 := by
@@ -1196,23 +1178,24 @@ lemma swallow_pol_degree (hL0 : 0 < #L) (I : (ml_pol_deg_le_n_set (R := ℝ) (X 
 
 noncomputable def ml_pol_deg_le_n_indexed := Fintype.equivFinOfCardEq
   (h :=  ((by simp only [Set.toFinset_card]) :
-      Fintype.card (ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1))
-    = #(ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1)).toFinset)).symm
+      Fintype.card (@ml_pol_deg_le_n_set ℝ _ _ (#L - #K) X)
+    = #(@ml_pol_deg_le_n_set ℝ _ _ (#L - #K) X).toFinset)).symm
 
 -- Ω_char_pol translates characteristic polynomials to the function from Ω to ℝ via pol_to_eval
-noncomputable def Ω_swallow_pol (i : Fin #(ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1)).toFinset)
-    (x : @Ω ℝ _ α X): ℝ := (swallow_pol n L (ml_pol_deg_le_n_indexed L i)).eval x
+noncomputable def Ω_swallow_pol (i : Fin #(@ml_pol_deg_le_n_set ℝ _ _ (#L - #K) X).toFinset)
+    (x : @Ω ℝ _ α X): ℝ := (swallow_pol L (ml_pol_deg_le_n_indexed L i)).eval x
 
 -- Show that the characteristic polynomial is also in the span of Ω_multilinear_set.
-lemma Ω_swallow_pol_spec (hL0 : 0 < #L) (i : Fin #(ml_pol_deg_le_n_set
-    (R := ℝ) (X := X) (#L - 1)).toFinset) : Ω_swallow_pol n L i ∈ Ω_multilinear_span L := by
-  exact Ω_multilinear_span_deg_le_mem L _ (swallow_pol_degree n L hL0 _)
+lemma Ω_swallow_pol_spec (hL : #K ≤ #L) (i : Fin #(@ml_pol_deg_le_n_set ℝ _ _
+    (#L - #K) X).toFinset) : Ω_swallow_pol L i ∈ Ω_multilinear_span L := by
+  exact Ω_multilinear_span_deg_le_mem L _ (swallow_pol_degree L hL _)
 
 -- This lemma gives a more handy definition of Ω_char_pol in preperation for lemma 2.1
-lemma Ω_swallow_pol_eq (i : Fin #(ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1)).toFinset) :
-    Ω_swallow_pol n L i = pol_to_eval ((ml_pol_deg_le_n_indexed L i).val)
-    * pol_to_eval ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - n : MvPolynomial X ℝ) := calc
-  _ = pol_to_eval (swallow_pol n L (ml_pol_deg_le_n_indexed L i)) := rfl
+lemma Ω_swallow_pol_eq (i : Fin #(@ml_pol_deg_le_n_set ℝ _ _ (#L - #K) X).toFinset) :
+    Ω_swallow_pol L i = pol_to_eval ((ml_pol_deg_le_n_indexed L i).val)
+    * pol_to_eval (∏ i : Fin #K, ((∑ j : X, (MvPolynomial.X (R := ℝ) j))
+    - K_indexed K i) : MvPolynomial X ℝ) := calc
+  _ = pol_to_eval (swallow_pol L (ml_pol_deg_le_n_indexed L i)) := rfl
   _ = _ := by simp [swallow_pol]
 
 lemma set_val_mem_card_subNat_eq {I : Finset α} (hI : I ⊆ X):
@@ -1229,30 +1212,53 @@ lemma set_val_mem_card_subNat_eq {I : Finset α} (hI : I ⊆ X):
   simp only [univ_eq_attach, mem_filter, mem_attach, true_and]
   exact hequiv
 
-lemma swallow_pol_spec (huniform : uniform F n) (i : Fin #(ml_pol_deg_le_n_set (R := ℝ)
-    (X := X) (#L - 1)).toFinset) (j : Fin #F) :
-    (Ω_swallow_pol n L i) (Ω_char_vec _ (hF _ (F_indexed j).2)) = 0 := by
+lemma swallow_pol_spec (hu : weak_uniform F K L) (i : Fin #(@ml_pol_deg_le_n_set ℝ _ _ (#L - #K) X
+    ).toFinset) (j : Fin #F) : (Ω_swallow_pol L i) (Ω_char_vec _ (hF _ (F_indexed j).2)) = 0 := by
   rw [Ω_swallow_pol_eq]
+  simp only [map_prod, map_sub, map_sum, map_natCast, Pi.natCast_def, Pi.mul_apply, prod_apply,
+    Pi.sub_apply, sum_apply, mul_eq_zero, prod_eq_zero_iff]
+  apply Or.inr
   unfold pol_to_eval
   simp only [AlgHom.coe_mk, RingHom.coe_mk, MonoidHom.coe_mk, OneHom.coe_mk, map_sub, map_sum,
     MvPolynomial.eval_X, map_natCast, Pi.natCast_def, Pi.mul_apply, Pi.sub_apply, sum_apply,
     mul_eq_zero]
-  apply Or.inr
   unfold Ω_char_vec char_vec
   simp only [mem_val, sum_boole]
+  have hcard : #((F_indexed j).1) ∈ F.image card := by
+    rw [mem_image]
+    use (F_indexed j)
+    simp
+  have hcard : ∃ a, (K_indexed K) a = #((F_indexed j).1) := by
+    rw [← @Set.mem_range]
+    suffices (F.image card) ⊆ (Set.range fun a ↦ ((K_indexed K) a : ℕ)).toFinset by
+      have this := this hcard
+      simpa using this
+    unfold weak_uniform at hu
+    suffices (Set.range fun a ↦ ((K_indexed K) a : ℕ)).toFinset = K by
+      rw [← this] at hu
+      exact hu.1
+    calc
+    _ = (Set.range (Subtype.val (α := ℕ) ∘ fun a ↦ ((K_indexed K) a))).toFinset := by congr
+    _ = _ := by ext x; simp
+  obtain ⟨a, ha⟩ := hcard
+  use a
+  --use ⟨, by ⟩
   rw [set_val_mem_card_subNat_eq (hI := hF _ (F_indexed j).2)]
   norm_cast
   rw [Int.subNat_eq_zero_iff]
-  exact huniform (F_indexed j).1 (F_indexed j).2
+  simp only [mem_univ, true_and]
+  exact ha.symm
 
-noncomputable def Ω_pol_family := Fin.append (Ω_char_pol L hF) (Ω_swallow_pol n L)
+noncomputable def Ω_pol_family (K : Finset ℕ) :=
+  Fin.append (Ω_char_pol L hF) (Ω_swallow_pol (K := K) L)
 
-def Ω_pol_span : Submodule ℝ (@Ω ℝ _ α X → ℝ) := Submodule.span ℝ (Set.range (Ω_pol_family n L hF))
+def Ω_pol_span (K : Finset ℕ) : Submodule ℝ (@Ω ℝ _ α X → ℝ) :=
+  Submodule.span ℝ (Set.range (Ω_pol_family L hF K))
 
 -- Show that the span of the characteristic polynomial is included in the span of Ω_multilinear_set.
-lemma span_to_R_le_span_ml (hL0 : 0 < #L): (Ω_pol_span n L hF) ≤ Ω_multilinear_span L := by
+lemma span_to_R_le_span_ml (hL : #K ≤ #L) : (Ω_pol_span L hF K) ≤ Ω_multilinear_span L := by
   unfold Ω_pol_span
-  suffices Set.range (Ω_pol_family n L hF) ⊆ (Ω_multilinear_span (R := ℝ) (X := X) L) by
+  suffices Set.range (Ω_pol_family L hF K) ⊆ (Ω_multilinear_span (R := ℝ) (X := X) L) by
     exact Submodule.span_le.mpr this
   intro x hx
   simp only [@Set.mem_range, Ω_pol_family] at hx
@@ -1260,17 +1266,15 @@ lemma span_to_R_le_span_ml (hL0 : 0 < #L): (Ω_pol_span n L hF) ≤ Ω_multiline
   unfold Fin.append Fin.addCases
   by_cases hym : y.val < #F
   · simp [hym, Ω_char_pol_spec]
-  · simp [hym, Ω_swallow_pol_spec n L hL0]
+  · simp [hym, Ω_swallow_pol_spec L hL]
 
 -- Show that the rank of the characteristic polynomial is ≤ the cardinality of Ω_multilinear_set.
-lemma dim_span_to_R_le (hL0 : 0 < #L) : Module.rank ℝ (Ω_pol_span n L hF)
+lemma dim_span_to_R_le (hL : #K ≤ #L) : Module.rank ℝ (Ω_pol_span L hF K)
     ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
-  have : Module.Finite ℝ (Ω_multilinear_span (R := ℝ) (X := X) L) := by
-    unfold Ω_multilinear_span
-    refine Module.Finite.span_of_finite ℝ ?_
-    exact Set.toFinite (Ω_multilinear_set #L)
-  rw [← dim_Ω_multilinear_span (R := ℝ) L, Module.finrank_eq_rank]
-  exact Submodule.rank_mono (span_to_R_le_span_ml n L hF hL0)
+  exact Preorder.le_trans (Module.rank ℝ (Ω_pol_span L hF K))
+    (Module.rank ℝ (Ω_multilinear_span (X := X) L))
+    (↑(∑ m ∈ range (#L + 1), (#X).choose m))
+    (Submodule.rank_mono (span_to_R_le_span_ml L hF hL)) (dim_Ω_multilinear_span L)
 
 lemma forall_fin_add {n m : ℕ} {P : Fin (n + m) → Prop} :
     (∀ i : Fin (n + m), P i) ↔
@@ -1296,69 +1300,41 @@ lemma forall_fin_add {n m : ℕ} {P : Fin (n + m) → Prop} :
       rw [this]
       exact h₂ j
 
-lemma Ω_pol_family_left_coeff_zero (hintersect : intersecting F L) (huniform : uniform F n)
-    (g : Fin (#F + #(ml_pol_deg_le_n_set (#L - 1)).toFinset) → ℝ)
-    (hg : ∑ i, g i • Ω_pol_family n L hF i = 0) (i : Fin #F) :
-    g (Fin.castAdd (#(ml_pol_deg_le_n_set (#L - 1)).toFinset) i) = 0 := by
-  simp only [Ω_pol_family, Fin.sum_univ_add, Fin.append_left, Fin.append_right] at hg
-  have hg := congr (a₁ := Ω_char_vec (R := ℝ) _ (hF _ (F_indexed i).2)) hg rfl
-  simp only [Pi.add_apply, sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at hg
-  have h0 : ∑ x, g (Fin.natAdd (#F) x) *
-      Ω_swallow_pol n L x (Ω_char_vec _ (hF _ (F_indexed i).2)) = 0 := calc
-    _ = ∑ x, g (Fin.natAdd (#F) x) * 0 := by
-      congr
-      ext x
-      congr
-      exact swallow_pol_spec n L hF huniform x i
-    _ = 0 := by simp
-  rw [h0, add_zero, Finset.sum_eq_sum_diff_singleton_add (i := i) (mem_univ i)] at hg
-  have h0 : ∑ x ∈ univ \ {i}, g (Fin.castAdd (#(ml_pol_deg_le_n_set (#L - 1)).toFinset) x)
-      * Ω_char_pol L hF x (Ω_char_vec _ (hF _ (F_indexed i).2)) = 0 := calc
-    _ = ∑ x ∈ univ \ {i}, g (Fin.castAdd (#(ml_pol_deg_le_n_set (#L - 1)).toFinset) x) * 0 := by
-      apply sum_congr rfl
-      intro x hx
-      simp only [mem_sdiff, mem_univ, mem_singleton, true_and] at hx
-      congr
-      exact char_pol_spec_2 n L hF x i hx huniform hintersect
-    _ = 0 := by simp
-  simp only [h0, zero_add, mul_eq_zero, char_pol_spec_1, or_false] at hg
-  exact hg
-
--- Show that the characteristic polynomials are in fact linear independent
-lemma Ω_pol_family_lin_indep (hL0 : 0 < #L) (hsi : intersecting F L)
-    (huniform : uniform F n) : LinearIndependent ℝ (Ω_pol_family n L hF):= by
-  by_contra hcon
-  rw [@Fintype.not_linearIndependent_iff] at hcon
-  obtain ⟨g, hg, hi⟩ := hcon
-  suffices ∀ i, g i = 0 by aesop
-  rw [forall_fin_add]
-  have hgl := Ω_pol_family_left_coeff_zero n L hF hsi huniform g hg
-  simp only [hgl, implies_true, true_and]
-  simp only [Ω_pol_family, Fin.sum_univ_add, hgl, Fin.append_left, zero_smul, sum_const_zero,
+lemma Ω_pol_family_left_coeff_zero (hwuni : weak_uniform F K L) (g : Fin (#F +
+    #(ml_pol_deg_le_n_set (#L - #K)).toFinset) → ℝ) (hg : ∑ i, g i • Ω_pol_family L hF K i = 0)
+    (hleft0 : ∀ (i : Fin #F), g (Fin.castAdd (#(ml_pol_deg_le_n_set (#L - #K)).toFinset) i) = 0) :
+    ∀ (j : Fin #(ml_pol_deg_le_n_set (#L - #K)).toFinset), g (Fin.natAdd (#F) j) = 0 := by
+  simp only [Ω_pol_family, Fin.sum_univ_add, hleft0, Fin.append_left, zero_smul, sum_const_zero,
     Fin.append_right, zero_add] at hg
   let f := fun j => g (Fin.natAdd (#F) j)
   suffices f = 0 by exact fun j ↦ congrFun this j
-  change ∑ x, f x • Ω_swallow_pol n L x = 0 at hg
+  change ∑ x, f x • Ω_swallow_pol L x = 0 at hg
   simp only [Ω_swallow_pol_eq] at hg
-  have hlin := Lemma_2_1 (#L - 1) (pol_to_eval
-      (∑ j : X, (MvPolynomial.X j) - (n : MvPolynomial X ℝ))) (by
+  have hlin := Lemma_2_1 (#L - #K) (pol_to_eval (∏ i : Fin #K,
+      ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i : MvPolynomial X ℝ))) (by
     intro I hI hId
     by_contra hcon
-    simp only [pol_to_eval, Ω_char_vec, map_sub, map_sum, AlgHom.coe_mk, RingHom.coe_mk,
-      MonoidHom.coe_mk, OneHom.coe_mk, MvPolynomial.eval_X, map_natCast, Pi.natCast_def,
-      Pi.sub_apply, sum_apply, char_vec, mem_val, sum_boole] at hcon
+    simp only [pol_to_eval, Ω_char_vec, map_prod, map_sub, map_sum, AlgHom.coe_mk, RingHom.coe_mk,
+      MonoidHom.coe_mk, OneHom.coe_mk, MvPolynomial.eval_X, map_natCast, Pi.natCast_def, prod_apply,
+      Pi.sub_apply, sum_apply, char_vec, mem_val, sum_boole, prod_eq_zero_iff, mem_univ,
+      true_and] at hcon
+    obtain ⟨a, hcon⟩ := hcon
     rw [set_val_mem_card_subNat_eq (hI := hI)] at hcon
     norm_cast at hcon
     rw [Int.subNat_eq_zero_iff] at hcon
-    subst hcon
-    have hcon := uniform_intersecting_card_le #I F L huniform hsi
-    have hcon := le_trans hcon hId
-    rwa [propext (Nat.le_sub_one_iff_lt hL0), lt_self_iff_false] at hcon)
+    have ha := ((K_indexed K) a).2
+    simp only [← hcon] at ha
+    unfold weak_uniform at hwuni
+    have hk : #(image card F) ≤ #K := card_le_card hwuni.1
+    have hId : #I ≤ #L - #(F.image card) := le_trans hId (by apply Nat.sub_le_sub_left hk)
+    rw [← Nat.Simproc.add_le_gt 0 (hwuni.2 #I ha)]
+    simp only [zero_add, hId])
   rw [← linearIndependent_set_coe_iff, linearIndependent_iff'ₛ] at hlin
   let f' := f ∘ (ml_pol_deg_le_n_indexed L).symm
-  have hequiv : ∑ i, f' i • (pol_to_eval i * pol_to_eval (∑ j, MvPolynomial.X j -
-      (n : MvPolynomial X ℝ))) = ∑ x, f x • (pol_to_eval ↑((ml_pol_deg_le_n_indexed L) x)
-      * pol_to_eval (∑ j, MvPolynomial.X j - (n : MvPolynomial X ℝ))) := by
+  have hequiv : ∑ i, f' i • (pol_to_eval i * pol_to_eval (∏ i : Fin #K,
+      ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i : MvPolynomial X ℝ))) = ∑ x, f x
+      • (pol_to_eval ((ml_pol_deg_le_n_indexed L) x) * pol_to_eval (∏ i : Fin #K,
+      ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i : MvPolynomial X ℝ))) := by
     apply Fintype.sum_equiv (e := (ml_pol_deg_le_n_indexed L).symm)
     simp [f']
   rw [← hequiv] at hg
@@ -1368,47 +1344,148 @@ lemma Ω_pol_family_lin_indep (hL0 : 0 < #L) (hsi : intersecting F L)
   have := this hg
   simp [f'] at this
   ext x
-  have hx : ∃ w, (ml_pol_deg_le_n_indexed L).symm ((ml_pol_deg_le_n_indexed L) w) = x:= by
-    use x
-    simp
+  have hx : ∃ w, (ml_pol_deg_le_n_indexed L).symm ((ml_pol_deg_le_n_indexed L) w) = x := by
+    use x; simp
   obtain ⟨w, hw⟩ := hx
   simp only [← hw, Equiv.symm_apply_apply, Pi.zero_apply]
   simp [← this ((ml_pol_deg_le_n_indexed L) w) (by simp)]
 
+lemma restrict_sum_linear {n m : ℕ} {α : Type u_1} {f : Fin n → ℝ} {g : Fin m → ℝ}
+    {p : Fin n → α → ℝ} {q : Fin m → α → ℝ} {S : Set α}
+    [Fintype S] : S.restrict (∑ x, f x • p x + ∑ x, g x • q x) =
+      (∑ x, f x • S.restrict (p x)) + (∑ x, g x • S.restrict (q x)) := by
+  ext ⟨a, ha⟩
+  simp [Set.restrict_apply, Finset.sum_apply, Pi.add_apply, Pi.smul_apply]
+
+lemma Finsupp_sum_eq_Fintype_sum_univ {R : Type u_1} [Semiring R] {M : Type u_2} [AddCommMonoid M]
+    [Module R M] {s : Type u_3} [Fintype s] {f : s →₀ R} {g : s → M} :
+    ∑ x ∈ f.support, f x • g x = ∑ x, f x • g x := by
+  classical
+  rw [← @Fintype.sum_extend_by_zero]
+  congr
+  ext x
+  simp only [Finsupp.mem_support_iff, ne_eq, ite_not, ite_eq_right_iff]
+  intro h
+  simp [h]
+
+-- Show that the characteristic polynomials are in fact linear independent
+lemma Ω_pol_family_lin_indep (hL : #K ≤ #L) (hinter : weak_intersecting F L)
+    (hwuni : weak_uniform F K L) : LinearIndependent ℝ (Ω_pol_family L hF K):= by
+  by_contra hcon
+  rw [@Fintype.not_linearIndependent_iff] at hcon
+  obtain ⟨g, hg, hi⟩ := hcon
+  suffices ∀ i, g i = 0 by aesop
+  rw [forall_fin_add]
+  suffices (∀ (i : Fin #F), g
+      (Fin.castAdd (#(ml_pol_deg_le_n_set (#L - #K)).toFinset) i) = 0) by
+    have h := Ω_pol_family_left_coeff_zero L hF hwuni _ hg this
+    simp only [this, implies_true, h, and_self]
+  simp only [Ω_pol_family, Fin.sum_univ_add, Fin.append_left, Fin.append_right] at hg
+  let Ω_restrict := Set.range (fun i => (Ω_char_vec (R := ℝ) _ (hF _ (F_indexed i).2)))
+  have : Fintype Ω_restrict := by apply Set.fintypeRange
+  have hg := congrArg Ω_restrict.restrict hg
+  rw [restrict_sum_linear] at hg
+  change _ = 0 at hg
+  have : ∀ x, Ω_restrict.restrict (Ω_swallow_pol L (K := K) x) = 0 := by
+    intro x
+    ext i
+    have hi := i.2
+    rw [Set.mem_range] at hi
+    obtain ⟨y, hi⟩ := hi
+    simp [← hi, swallow_pol_spec L hF hwuni x]
+  simp only [this, smul_zero, sum_const_zero, add_zero] at hg
+  have := @sorted_linearComb_zero _ _ _ _ Set.univ _
+    (fun x => Ω_restrict.restrict (Ω_char_pol L hF x)) (fun x => #(F_indexed x).1)
+  let f := fun i => g (Fin.castAdd (#(ml_pol_deg_le_n_set (#L - #K)).toFinset) i)
+  suffices f = 0 by intro i; change f i = 0; exact congrFun this i
+  let f_fin := Finsupp.equivFunOnFinite.symm f
+  change ∑ x, f_fin x • Ω_restrict.restrict (Ω_char_pol L hF x) = 0 at hg
+  suffices f_fin = 0 by ext x; change f_fin x = _; simp [this]
+  apply this
+  · simp only [Set.mem_univ, Function.mem_support, Set.restrict_apply, ne_eq, Nat.cast_le,
+    Decidable.not_not, forall_const, Subtype.exists, exists_and_left, exists_prop]
+    intro f
+    use Ω_char_vec (R := ℝ) _ (hF _ (F_indexed f).2)
+    use (by simp only [Subtype.coe_prop])
+    simp only [Subtype.coe_eta, char_pol_spec_1, not_false_eq_true, Set.mem_range,
+      exists_apply_eq_apply, true_and, Ω_restrict]
+    intro g hgf hneg
+    exact char_pol_spec_2 L hF hinter g f (fun a ↦ hneg a.symm) hgf
+  · simp
+  · rw [← hg]
+    exact Finsupp_sum_eq_Fintype_sum_univ
+
+theorem Ray_Chaudhuri_Wilson_Theorem_generalized_K_le_L
+    (hKL : #K ≤ #L) (hF : ∀ A ∈ F, A ⊆ X) (hu : weak_uniform F K L)
+    (hi : weak_intersecting F L): #F ≤ ∑ m ∈ Ico ((#L - #K) + 1) (#L + 1), Nat.choose #X m := by
+  have h : ((#L - #K) + 1) ≤ (#L + 1) := by simp
+  rw [← Nat.cast_le (α := ℝ), Nat.cast_sum, Finset.sum_Ico_eq_sub (fun x => ((#X).choose x : ℝ)) h]
+  have h := linearIndependent_span (Ω_pol_family_lin_indep L hF hKL hi hu)
+  apply LinearIndependent.cardinal_le_rank at h
+  simp only [Set.toFinset_card, Cardinal.mk_fintype, Fintype.card_fin, Nat.cast_add] at h
+  have hc := card_ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - #K)
+  rw [Set.toFinset_card] at hc
+  simp only [hc, Nat.sub_add_cancel hKL, Nat.cast_sum] at h
+  have h := le_trans h (dim_span_to_R_le L hF hKL)
+  norm_cast at h
+  have hsumle : ∑ x ∈ range (#L - #K + 1), (#X).choose x ≤ ∑ x ∈ range (#L + 1),
+      (#X).choose x := sum_le_sum_of_subset_of_nonneg (by simp) (by simp)
+  rw [← Nat.le_sub_iff_add_le hsumle] at h
+  have h := (Nat.cast_le (α := ℝ)).mpr h
+  suffices (((∑ x ∈ range (#L + 1), (#X).choose x -
+    ∑ x ∈ range (#L - #K + 1), (#X).choose x) :ℕ) : ℝ) =
+    ∑ k ∈ range (#L + 1), ((#X).choose k : ℝ) -
+    ∑ k ∈ range (#L - #K + 1), ((#X).choose k : ℝ) by
+    rwa [this] at h
+  simp only [← Nat.cast_sum]
+  exact Nat.cast_sub hsumle
+
+theorem Ray_Chaudhuri_Wilson_Theorem_generalized (hF : ∀ A ∈ F, A ⊆ X) (hu : weak_uniform F K L)
+    (hi : weak_intersecting F L): #F ≤ ∑ m ∈ Ico (#L + 1 - #K) (#L + 1), Nat.choose #X m := by
+  by_cases hKL : #K ≤ #L
+  · have hans := Ray_Chaudhuri_Wilson_Theorem_generalized_K_le_L L hKL hF hu hi
+    suffices #L - #K + 1 = #L + 1 - #K by rwa [← this]
+    ring_nf
+    exact (Nat.add_sub_assoc hKL 1).symm
+  · have : #L + 1 - #K ≤ #L + 1 := by simp
+    rw [← Nat.cast_le (α := ℝ), Nat.cast_sum,
+      Finset.sum_Ico_eq_sub (fun x => ((#X).choose x : ℝ)) this]
+    have : #L + 1 - #K = 0 := by
+      rw [tsub_eq_zero_iff_le]
+      simp only [not_le] at hKL
+      exact hKL
+    simp only [this, range_zero, sum_empty, sub_zero, ge_iff_le]
+    simp only [← Nat.cast_sum, Nat.cast_le]
+    exact Frankl_Wilson.Frankl_Wilson_intersecting L hF hi
+
 theorem Ray_Chaudhuri_Wilson_Theorem (hF : ∀ A ∈ F, A ⊆ X) (huniform : uniform F n)
     (hintersect : intersecting F L): #F ≤ Nat.choose #X #L := by
-  by_cases hL0 : 0 < #L
-  · have h := linearIndependent_span (Ω_pol_family_lin_indep n L hF hL0 hintersect huniform)
-    apply LinearIndependent.cardinal_le_rank at h
-    simp only [Set.toFinset_card, Cardinal.mk_fintype, Fintype.card_fin, Nat.cast_add] at h
-    have hc := card_ml_pol_deg_le_n_set (R := ℝ) (X := X) (#L - 1)
-    rw [Set.toFinset_card] at hc
-    simp only [hc, Nat.sub_add_cancel hL0, Nat.cast_sum] at h
-    have h := le_trans h (dim_span_to_R_le n L hF hL0)
-    norm_cast at h
-    rw [← Nat.le_sub_iff_add_le] at h
-    suffices ∑ x ∈ range (#L + 1), (#X).choose x - ∑ x ∈ range #L, (#X).choose x = (#X).choose #L
-      by rwa [← this]
-    simp only [sum_range_succ, Nat.add_sub_cancel, add_tsub_cancel_left]
-    rw [sum_range_succ]
-    exact Nat.le_add_right _ _
-  · simp at hL0
-    subst hL0
-    simp only [card_empty, Nat.choose_zero_right]
-    simp only [intersecting, ne_eq] at hintersect
-    rw [@Finset.ext_iff] at hintersect
-    simp only [not_mem_empty, Set.mem_toFinset, Set.mem_setOf_eq, false_iff, not_exists,
-      not_and] at hintersect
-    by_contra hcon
-    rw [not_le] at hcon
-    change 1 + 1 ≤ #F at hcon
-    simp only [Nat.reduceAdd, @le_card_iff_exists_subset_card] at hcon
-    obtain ⟨t, ⟨htf, ht⟩⟩ := hcon
-    rw [@card_eq_two] at ht
-    obtain ⟨a, b, hneq, rfl⟩ := ht
-    have hcon := hintersect #(a ∩ b) a (htf (mem_insert_self a {b})) b (htf (by
-      apply mem_insert_of_mem
-      exact mem_singleton.mpr rfl)) hneq
-    simp only [not_true_eq_false] at hcon
+  by_cases hn : 0 < n
+  · have := uniform_weak_uniform n L hn hintersect huniform
+    have hwi := intersecting_weak_intersecting hintersect
+    have := Ray_Chaudhuri_Wilson_Theorem_generalized L hF this hwi
+    simpa using this
+  simp only [not_lt, nonpos_iff_eq_zero] at hn
+  subst hn
+  simp [uniform] at huniform
+  have hF : F ⊆ {∅} := by
+    intro x hx
+    simp only [mem_singleton]
+    exact huniform x hx
+  calc
+  _ ≤ #{∅} := card_le_card hF
+  _ = 1 := rfl
+  _ ≤ _ := by
+    apply Nat.choose_pos
+    suffices #L = 0 by rw [this]; exact Nat.zero_le #X
+    simp only [card_eq_zero]
+    rw [hintersect]
+    ext x
+    simp only [ne_eq, Set.mem_toFinset, Set.mem_setOf_eq, not_mem_empty, iff_false, not_exists,
+      not_and]
+    intro x1 hx1 x2 hx2 hneq
+    exfalso
+    rw [huniform x1 hx1, ← huniform x2 hx2] at hneq
+    exact hneq rfl
 
 end Ray_Chaudhuri_Wilson
