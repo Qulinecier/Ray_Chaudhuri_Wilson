@@ -24,6 +24,7 @@ import Mathlib.Algebra.Field.ZMod
 import RayChaudhuriWilson.intersection_card
 import RayChaudhuriWilson.Matrix_rank
 import RayChaudhuriWilson.Finset_card
+import RayChaudhuriWilson.fin_strong_induction
 
 
 open Finset
@@ -54,7 +55,7 @@ def incidence_matrix (i j: ℕ) :Matrix (powersetCard i X) (powersetCard j X) �
 def Gram_matrix (i j: ℕ) := (Matrix.transpose (incidence_matrix X i j))
   * (incidence_matrix X i j)
 
-lemma incidence_mul_subset (i: Finset.range (s + 1)) (B : { x // x ∈ powersetCard i X })
+lemma incidence_mul_subset (i: Fin (s + 1)) (B : { x // x ∈ powersetCard i X })
     (A: { x // x ∈ powersetCard k X })
     (S: { x // x ∈ powersetCard s X }) :
     incidence_matrix X i s B S * incidence_matrix X s k S A  =
@@ -69,7 +70,7 @@ lemma incidence_mul_subset (i: Finset.range (s + 1)) (B : { x // x ∈ powersetC
     · rw [if_neg h1, if_neg (not_and.mpr fun a a_1 ↦ h1 a), zero_mul]
 
 
-lemma set_card_map (i: Finset.range (s + 1)) (B : { x // x ∈ powersetCard i X })
+lemma set_card_map (i: Fin (s + 1)) (B : { x // x ∈ powersetCard i X })
     (A: { x // x ∈ powersetCard k X }): {x ∈  powersetCard s X  | B.val ⊆ x ∧ x ⊆ A.val}
     = {x ∈ powersetCard s X | #(B.val ∩ x) = #B.val ∧ (x ⊆ A)} :=by
   ext x
@@ -83,7 +84,7 @@ lemma set_card_map (i: Finset.range (s + 1)) (B : { x // x ∈ powersetCard i X 
       (Nat.le_of_eq (id (Eq.symm hx.2.1)))), hx.2.2⟩ ⟩
 
 
-lemma N_transpose_N_eq_coe_N (i: Finset.range (s + 1)) : (incidence_matrix X i s)
+lemma N_transpose_N_eq_coe_N (i: Fin (s + 1)) : (incidence_matrix X i s)
     * (incidence_matrix X s k) =
     (Nat.choose (k - i) (s - i)) • (incidence_matrix X i k) :=by
   funext B A
@@ -96,8 +97,8 @@ lemma N_transpose_N_eq_coe_N (i: Finset.range (s + 1)) : (incidence_matrix X i s
       (fun (x: (Finset α)) => if (B.val ⊆ x) ∧ (x ⊆ A) then 1 else 0)]
     simp_rw [if_pos hBA, nsmul_eq_mul, mul_one, sum_boole]
     rw [set_card_map]
-    simp_rw [card_set_subset_set_nat_choose s (#B.val) B.val A.val (le_of_eq_of_le
-      ((mem_powersetCard.mp B.property).right) (mem_range_succ_iff.mp (i.property)))
+    simp_rw [card_set_subset_set_nat_choose s (#B.val) B.val A.val
+      (le_of_eq_of_le ((mem_powersetCard.mp B.property).right) (Fin.is_le i))
       ((mem_powersetCard.mp B.property).left) ((mem_powersetCard.mp A.property).left),
       inter_eq_left.mpr hBA, Nat.choose_self, one_mul, card_sdiff hBA,
       (mem_powersetCard.mp B.property).right, (mem_powersetCard.mp A.property).right]
@@ -125,7 +126,7 @@ def polyLe (n : ℕ) : Submodule (ZMod p) (Polynomial (ZMod p)) :=
       exact hp
 }
 
-noncomputable def binomVec (i : Finset.range (s + 1)) : (polyLe p s) := by
+noncomputable def binomVec (i : Fin (s + 1)) : (polyLe p s) := by
   refine' ⟨(1/(Nat.factorial i): ZMod p) • (descPochhammer (ZMod p) i.val), ?_⟩
   unfold polyLe
   simp only [Submodule.mem_mk, AddSubmonoid.mem_mk, AddSubsemigroup.mem_mk,
@@ -134,42 +135,46 @@ noncomputable def binomVec (i : Finset.range (s + 1)) : (polyLe p s) := by
   · rw [hi]
     simp only [zero_smul, Polynomial.natDegree_zero, zero_le]
   · rw [Polynomial.natDegree_smul _ hi, descPochhammer_natDegree]
-    exact mem_range_succ_iff.mp i.property
+    exact Fin.is_le i
 
 
 lemma binomVec_linearIndependent :
-    LinearIndependent (ZMod p) (fun i : Finset.range (s + 1) =>
+    LinearIndependent (ZMod p) (fun i : Fin (s + 1) =>
     (binomVec (s:=s) p i : polyLe p s)) := by
   rw [linearIndependent_iff'']
   intro S c hc hcoe i
+  unfold binomVec at hcoe
+  simp only [one_div, SetLike.mk_smul_mk] at hcoe
+  let p: Fin (s + 1) → Prop := fun x => (c x = 0)
+  --TODO
   sorry
 
 
 lemma binomVec_span_top :
-    ⊤ ≤ Submodule.span (ZMod p) (Set.range (fun i : Finset.range (s + 1) =>
+    ⊤ ≤ Submodule.span (ZMod p) (Set.range (fun i : Fin (s + 1) =>
     (binomVec (s:=s) p i : polyLe p s))) := by
   sorry
 
-noncomputable def binomBasis : Module.Basis (Finset.range (s + 1)) (ZMod p) (polyLe p s):=by
+noncomputable def binomBasis : Module.Basis (Fin (s + 1)) (ZMod p) (polyLe p s):=by
   exact Module.Basis.mk (binomVec_linearIndependent s p) (binomVec_span_top s p)
 
 
 lemma exists_coe_M_poly (f: Polynomial (ZMod p)) (hf: Polynomial.natDegree f ≤ s):
-  ∃ (a : Finset.range (s + 1) → (ZMod p)), f
-   = ∑ (i : Finset.range (s + 1)), (a i) • ((1/(Nat.factorial i): ZMod p) •
+  ∃ (a : Fin (s + 1) → (ZMod p)), f
+   = ∑ (i : Fin (s + 1)), (a i) • ((1/(Nat.factorial i): ZMod p) •
   (descPochhammer (ZMod p) i.val)) := by
   sorry
 
-lemma exists_coe_M : ∃ (a : Finset.range (s + 1) → ZMod p), ∀ (x : ℕ), (∏ (i : Finset.Icc 1 s),
-  (x - μ (Fin.ofNat (s + 1) i.val))) = ∑ (i : Finset.range (s + 1)), (a i) * (Nat.choose x i) := by
+lemma exists_coe_M : ∃ (a : Fin (s + 1) → ZMod p), ∀ (x : ℕ), (∏ (i : Finset.Icc 1 s),
+  (x - μ (Fin.ofNat (s + 1) i.val))) = ∑ (i : Fin (s + 1)), (a i) * (Nat.choose x i) := by
   sorry
 
-def gram_M (a : Finset.range (s + 1) → ZMod p) := ∑ (i : Finset.range (s + 1)), ((a i).val: ℝ) •
+def gram_M (a : Fin (s + 1) → ZMod p) := ∑ (i : Fin (s + 1)), ((a i).val: ℝ) •
   (Gram_matrix X i k)
 
 /-- The minor `M(𝓕)` of `Gram_matrix i j` obtained by restricting to
     rows/columns indexed by `𝓕 ⊆ powersetCard j X`. -/
-noncomputable def M_minor (a : Finset.range (s + 1) → ZMod p) :
+noncomputable def M_minor (a : Fin (s + 1) → ZMod p) :
     Matrix {A // A ∈ F} {A // A ∈ F} ℝ :=
   (gram_M X s k p a).submatrix (fun u => u) (fun v => v)
 
@@ -180,7 +185,7 @@ instance: StrongRankCondition (ZMod p) := IsNoetherianRing.strongRankCondition (
 instance: Field (ZMod p) :=by infer_instance
 
 omit hp hF in
-lemma rank_minor_le_M (a : Finset.range (s + 1) → ZMod p): Matrix.rank (M_minor X s k p F a)
+lemma rank_minor_le_M (a : Fin (s + 1) → ZMod p): Matrix.rank (M_minor X s k p F a)
     ≤ Matrix.rank (gram_M X s k p a) := by
   exact rank_submatrix_le' (gram_M X s k p a) (fun (u: F) => (u: powersetCard k X))
     (fun (v: F) => (v: powersetCard k X))
@@ -251,7 +256,7 @@ instance (a: ZMod p) (ha: a ≠ 0): Invertible a := by exact invertibleOfNonzero
 
 lemma row_N_i_k_in_V (p : ℕ) [hp : Fact p.Prime]
     (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
-    (i: Finset.range (s + 1)) (u: powersetCard i X )
+    (i: Fin (s + 1)) (u: powersetCard i X )
     (μ : Fin (s + 1) →  ZMod p)
     (h_card : #(μ_set X k p F) = s + 1) (hμ': μ_set' s p μ = (μ_set X k p F)):
     incidence_matrix X i k u ∈ vector_space_on_N X s k := by
@@ -284,7 +289,7 @@ lemma row_N_i_k_in_V (p : ℕ) [hp : Fact p.Prime]
 omit hp in
 lemma finrank_span_row_M_leq_dim_V (p : ℕ) [hp : Fact p.Prime]
   (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
-  (a : Finset.range (s + 1) → ZMod p)
+  (a : Fin (s + 1) → ZMod p)
   (μ : Fin (s + 1) →  ZMod p)
   (h_card : #(μ_set X k p F) = s + 1) (hμ': μ_set' s p μ = (μ_set X k p F))
   :
@@ -309,7 +314,7 @@ lemma finrank_span_row_M_leq_dim_V (p : ℕ) [hp : Fact p.Prime]
 
 lemma rank_M_leq_rank_V
   (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
-  (a : Finset.range (s + 1) → ZMod p)
+  (a : Fin (s + 1) → ZMod p)
   (μ : Fin (s + 1) →  ZMod p)
   (h_card : #(μ_set X k p F) = s + 1) (hμ': μ_set' s p μ = (μ_set X k p F))
   : Matrix.rank (gram_M X s k p a)
@@ -317,11 +322,14 @@ lemma rank_M_leq_rank_V
   exact le_of_eq_of_le (Matrix.rank_eq_finrank_span_row (gram_M X s k p a))
     (finrank_span_row_M_leq_dim_V X s k p F a μ h_card hμ')
 
-lemma det_M_neq_0_rank_M_eq_card_F (a : Finset.range (s + 1) → ZMod p):
-  (Matrix.det (M_minor X s k p F a)) ≠ 0 →
-  Matrix.rank (M_minor X s k p F a) = #F := sorry
+omit hp hF in
+lemma det_M_neq_0_rank_M_eq_card_F (a : Fin (s + 1) → ZMod p):
+    (Matrix.det (M_minor X s k p F a)) ≠ 0 →
+    Matrix.rank (M_minor X s k p F a) = #F :=
+  fun h => by simp_rw [Matrix.rank_of_isUnit (M_minor X s k p F a)
+    ((Matrix.isUnit_iff_isUnit_det (M_minor X s k p F a)).mpr (Ne.isUnit h)), Fintype.card_coe]
 
-lemma det_M_neq_0 (a : Finset.range (s + 1) → ZMod p):
+lemma det_M_neq_0 (a : Fin (s + 1) → ZMod p):
   (Matrix.det (M_minor X s k p F a)) ≠ 0 := by sorry
 
 theorem Frankl_Wilson_mod
@@ -331,7 +339,7 @@ theorem Frankl_Wilson_mod
     (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
     (huniform_mod: uniform_mod X s k p F μ)
     (hintersect: intersecting_mod X s k p F μ): #F ≤ Nat.choose n s  := by
-  obtain ⟨a, h⟩ := exists_coe_M s p μ
+  obtain ⟨a, _⟩ := exists_coe_M s p μ
   rw [← det_M_neq_0_rank_M_eq_card_F X s k p F a (det_M_neq_0 X s k p F a)]
   exact le_trans (rank_minor_le_M X s k p F a) (le_trans
     (rank_M_leq_rank_V X s k p F a μ h_card hμ') (dim_V_leq_binom_n_s X n s k))
