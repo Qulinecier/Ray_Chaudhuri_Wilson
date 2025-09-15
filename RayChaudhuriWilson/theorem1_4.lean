@@ -180,6 +180,7 @@ lemma uniform_intersecting_card_le (L : Finset ℕ) (hu : uniform F n)
 lemma intersecting_L_card_bound (hF : ∀ A ∈ F, A ⊆ X) (hi : intersecting F L) : #L ≤ #X :=
   intersecting_card_le_if_F_bounded #X L hi (fun A a ↦ card_le_card (hF A a))
 
+-- give a weak_uniform condition from intersecting property for using theorem 1.4
 lemma intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : intersecting F L) :
     weak_uniform F (range (#X + 1)) L := by
   unfold weak_uniform
@@ -192,6 +193,7 @@ lemma intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : intersect
     exact card_le_card (hF x hx)
   · exact fun _ _ => le_add_of_le_right (intersecting_L_card_bound L hF hi)
 
+-- if F is not empty and is k-uniform, then the set of #A for all A ∈ F is the singleton {k}.
 lemma image_card_of_uniform_not_empty (hu : uniform F n) (hF : ¬ F = ∅) : image card F = {n} := by
   ext x
   simp only [mem_image, mem_singleton, forall_exists_index, and_imp]
@@ -242,7 +244,7 @@ lemma intersecting_weak_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
   simp only [hA, true_and]
   use B
 
--- NOT USED, but I am not sure if it is useful in practise.
+-- Find a (strict) intersecting set Ls from weak-intersecting set L.
 lemma weak_intersecting_exist_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
     weak_intersecting F L → ∃ Ls ⊆ L, intersecting F Ls := by
   unfold intersecting weak_intersecting
@@ -544,24 +546,17 @@ lemma card_ml_pol_deg_n_set : #(ml_pol_deg_n_set (R := R) (X := X) n).toFinset
   _ = #(powersetCard n X) := Fintype.card_coe (powersetCard n X)
   _ = _ := card_powersetCard n X
 
-/-
-ml_pol_deg_le_n_set is the set of all multilinear polynomials of degree less than or equal to n.
-
-🚧
-It would probably be better to define it as ml_pol_deg_lt_n_set, with f.totalDegree < n, then
-Frankle_Wilson theorm will not be needed to prove the generalized Ray_Chuauduri_Wilson theorem,
-since when n = 0, ml_pol_deg_lt_n_set will be the empty set.
--/
+-- ml_pol_deg_lt_n_set is the set of all multilinear polynomials of degree less than n.
 def ml_pol_deg_lt_n_set : Set (MvPolynomial X R) :=
   {f | f.totalDegree < n ∧ ∃ S : X →₀ ℕ, f = MvPolynomial.monomial (pol_power_shrink S) 1}
 
+-- show that the set of multilinear polynomials of degree less than 0 is empty
 omit [DecidableEq α] in
 lemma ml_pol_deg_lt_0_empty : ml_pol_deg_lt_n_set (X := X) (R := R) 0 = ∅ := by
   simp [ml_pol_deg_lt_n_set]
 
 -- show that (ml_pol_deg_n_set n)'s are parwise disjoint for different degree n
-lemma disjoint_ml_pol_deg_n_set :
-    (Finset.range n).toSet.PairwiseDisjoint
+lemma disjoint_ml_pol_deg_n_set : (Finset.range n).toSet.PairwiseDisjoint
     (fun m => (ml_pol_deg_n_set (R := R) (X := X) m).toFinset) := by
   intro x hx y hy hxy
   refine Set.disjoint_toFinset.mpr ?_
@@ -573,14 +568,12 @@ lemma disjoint_ml_pol_deg_n_set :
   rw [ha] at hb
   exact hxy hb
 
--- Show that ml_pol_deg_le_n_set n is the disjoint union of polynomials of degree equal to m ≤ n
+-- Show that ml_pol_deg_lt_n_set n is the disjoint union of polynomials of degree equal to m < n
 lemma multilinear_set_union_by_deg : ml_pol_deg_lt_n_set n =
     ((Finset.range n).disjiUnion (fun m => (ml_pol_deg_n_set (X := X) m).toFinset)
-      (disjoint_ml_pol_deg_n_set (R := R) n)).toSet := by
-    ext f
-    simp only [ml_pol_deg_lt_n_set, Set.mem_setOf_eq, ml_pol_deg_n_set, coe_disjiUnion, coe_range,
-      Set.mem_Iio, Set.coe_toFinset, Set.mem_iUnion, exists_and_left, exists_prop, exists_eq_left',
-      and_congr_left_iff, forall_exists_index]
+    (disjoint_ml_pol_deg_n_set (R := R) n)).toSet := by
+  ext f
+  simp [ml_pol_deg_lt_n_set, ml_pol_deg_n_set]
 
 noncomputable instance : Fintype (ml_pol_deg_lt_n_set (R := R) (X := X) n) := by
   rw [multilinear_set_union_by_deg]
@@ -596,8 +589,7 @@ lemma Ω_multilinear_set_eq : Ω_multilinear_set (R := R) (X := X) n = pol_to_ev
   simp only [Set.mem_image, Set.mem_setOf_eq]
   apply Iff.intro
   · intro a
-    obtain ⟨w, ⟨h, S, hwS⟩, hw⟩ := a
-    subst hwS
+    obtain ⟨w, ⟨h, S, rfl⟩, hw⟩ := a
     rw [Ω_pol_spec_1] at hw
     use ((MvPolynomial.monomial (pol_power_shrink S)) 1)
     constructor
@@ -607,8 +599,7 @@ lemma Ω_multilinear_set_eq : Ω_multilinear_set (R := R) (X := X) n = pol_to_ev
       · use S
     · exact hw
   · intro a
-    obtain ⟨w, ⟨h, S, hwS⟩, hw⟩ := a
-    subst hw
+    obtain ⟨w, ⟨h, S, hwS⟩, rfl⟩ := a
     use w
     constructor
     · constructor
@@ -631,8 +622,7 @@ lemma pol_to_eval_bij : Set.BijOn (β := @Ω R _ α X → R) pol_to_eval
     exact ⟨hf, rfl⟩
   constructor
   · intro f hf g hg hfg
-    rw [funext_iff] at hfg
-    simp only [Subtype.forall] at hfg
+    rw [funext_iff, Subtype.forall] at hfg
     rw [hf.2.choose_spec, hg.2.choose_spec] at hfg ⊢
     refine (MvPolynomial.monomial_eq_monomial_iff (pol_power_shrink hf.right.choose)
       (pol_power_shrink hg.right.choose) 1 1).mpr ?_
@@ -647,8 +637,7 @@ lemma pol_to_eval_bij : Set.BijOn (β := @Ω R _ α X → R) pol_to_eval
       simp only [Ω, Subtype.forall, Set.mem_setOf_eq, ite_eq_right_iff, one_ne_zero, imp_false,
         ite_eq_left_iff, zero_ne_one, Decidable.not_not, a]
       intro _ _
-      apply eq_or_ne
-      )
+      apply eq_or_ne)
     simp only [MvPolynomial.eval_monomial, Finsupp.prod, ite_pow, one_pow, prod_ite_eq',
       Finsupp.mem_support_iff, ne_eq, ite_not, mul_ite, mul_one, one_mul, a] at hfg
     apply Iff.intro
@@ -699,10 +688,7 @@ def Ω_multilinear_span : Submodule R (@Ω R _ α X → R) :=
 omit [DecidableEq α] in
 theorem monomial_in_Ω_span (v : X →₀ ℕ) (hv : (v.sum fun x e ↦ e) ≤ #L):
     pol_to_eval (MvPolynomial.monomial (R := R) v 1) ∈ Ω_multilinear_span L := by
-  unfold Ω_multilinear_span
-  suffices _ ∈ (Ω_multilinear_set (X := X) (#L + 1)) by
-    exact Submodule.mem_span.mpr fun p a ↦ a this
-  simp only [Ω_multilinear_set, Set.mem_image]
+  refine Submodule.mem_span.mpr fun p a ↦ a ?_
   use (MvPolynomial.monomial v) 1
   constructor
   · simp only [Set.mem_setOf_eq, ne_eq, one_ne_zero, not_false_eq_true,
@@ -725,9 +711,7 @@ lemma Ω_multilinear_span_deg_le_mem (f : MvPolynomial X R) (hdeg : f.totalDegre
     rw [hsmul, map_smul]
     exact Submodule.smul_mem (Ω_multilinear_span L) (MvPolynomial.coeff v f) this
   apply monomial_in_Ω_span
-  refine le_trans ?_ hdeg
-  apply MvPolynomial.le_totalDegree
-  exact hv
+  exact le_trans (MvPolynomial.le_totalDegree hv) hdeg
 
 -- Show that the rank of the span of Ω_multilinear_set is = its cardinality
 lemma dim_Ω_multilinear_span : Module.rank R (Ω_multilinear_span (R := R) (X := X) L) ≤
@@ -914,6 +898,7 @@ noncomputable def K_indexed (K : Finset ℕ) := Fintype.equivFinOfCardEq
 noncomputable def swallow_pol (I : (@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X)) :=
   (I.val) * ∏ i : Fin #K, ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i)
 
+-- show that if there exist an element in ml_pol_deg_lt_n_set, than n > 0, thus #K ≤ #L.
 omit [DecidableEq α] in
 lemma swallow_pol_K_card_le_L (I : (@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X)) : #K ≤ #L := by
   by_contra hcon
@@ -922,13 +907,7 @@ lemma swallow_pol_K_card_le_L (I : (@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X
   have hI := I.2
   simp [this, ml_pol_deg_lt_0_empty] at hI
 
-/-
-show that the swallowing polynomial also have totaldegree ≤ #L.
-You need to have hL, because the ml_pol_deg_le_n_set is defined to have
-f.totaldegree ≤ n, where n : ℕ, thus even if n is negative, you can still have
-f.totaldegree = 0, thus the constant polynomial (1 : MvPolynomial X ℝ) will still
-be in ml_pol_deg_le_n_set.
--/
+-- show that the swallowing polynomial also have totaldegree ≤ #L.
 omit [DecidableEq α] in
 lemma swallow_pol_degree (I : (@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X)) :
     (swallow_pol L I).totalDegree ≤ #L := by
@@ -970,7 +949,7 @@ lemma swallow_pol_degree (I : (@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X)) :
     apply MvPolynomial.totalDegree_finsetSum_le
     simp
 
--- numbering the multilinear polynomials of degree ≤ #L - #K
+-- numbering the multilinear polynomials of degree < #L + 1 - #K
 noncomputable def ml_pol_deg_lt_n_indexed := Fintype.equivFinOfCardEq
   (h :=  ((by simp only [Set.toFinset_card]) :
       Fintype.card (@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X)
@@ -1020,25 +999,22 @@ lemma swallow_pol_spec (hu : weak_uniform F K L)
   simp only [AlgHom.coe_mk, RingHom.coe_mk, MonoidHom.coe_mk, OneHom.coe_mk, map_sub, map_sum,
     MvPolynomial.eval_X, map_natCast, Pi.natCast_def, Pi.mul_apply, Pi.sub_apply, sum_apply,
     mul_eq_zero]
-  unfold Ω_char_vec char_vec
-  simp only [mem_val, sum_boole]
+  simp only [Ω_char_vec, char_vec, mem_val, sum_boole]
   have hcard : #((F_indexed j).1) ∈ F.image card := by
     rw [mem_image]
     use (F_indexed j)
     simp
-  have hcard : ∃ a, (K_indexed K) a = #((F_indexed j).1) := by
+  have ⟨a, ha⟩ : ∃ a, (K_indexed K) a = #((F_indexed j).1) := by
     rw [← @Set.mem_range]
     suffices (F.image card) ⊆ (Set.range fun a ↦ ((K_indexed K) a : ℕ)).toFinset by
-      have this := this hcard
+      have := this hcard
       simpa using this
-    unfold weak_uniform at hu
     suffices (Set.range fun a ↦ ((K_indexed K) a : ℕ)).toFinset = K by
       rw [← this] at hu
       exact hu.1
     calc
     _ = (Set.range (Subtype.val (α := ℕ) ∘ fun a ↦ ((K_indexed K) a))).toFinset := by congr
     _ = _ := by ext x; simp
-  obtain ⟨a, ha⟩ := hcard
   use a
   rw [set_val_mem_card_subNat_eq (hI := hF _ (F_indexed j).2)]
   norm_cast
@@ -1078,12 +1054,10 @@ lemma dim_span_to_R_le : Module.rank ℝ (Ω_pol_span L hF K)
 
 /- Shows that for any element in the appended Fin (n + m) sufficing P, it is either in the
 first Fin n sufficing P or in the second Fin m sufficing P.-/
-lemma forall_fin_add {n m : ℕ} {P : Fin (n + m) → Prop} :
-    (∀ i : Fin (n + m), P i) ↔
-      (∀ i : Fin n, P (Fin.castAdd m i)) ∧ (∀ j : Fin m, P (Fin.natAdd n j)) := by
+lemma forall_fin_add {n m : ℕ} {P : Fin (n + m) → Prop} : (∀ i : Fin (n + m), P i)
+    ↔ (∀ i : Fin n, P (Fin.castAdd m i)) ∧ (∀ j : Fin m, P (Fin.natAdd n j)) := by
   constructor
-  · intro h
-    exact ⟨fun i => h (Fin.castAdd m i), fun j => h (Fin.natAdd n j)⟩
+  · exact fun h => ⟨fun i => h (Fin.castAdd m i), fun j => h (Fin.natAdd n j)⟩
   · rintro ⟨h₁, h₂⟩ i
     by_cases hi : i.val < n
     · have : i = Fin.castAdd m ⟨i, hi⟩ := by simp [Fin.castAdd, hi]
@@ -1095,44 +1069,45 @@ lemma forall_fin_add {n m : ℕ} {P : Fin (n + m) → Prop} :
         rwa [Nat.add_comm m n]⟩
       have : i = Fin.natAdd n j := by
         rw [Fin.natAdd]
-        unfold j
         have := (Nat.sub_add_cancel (not_lt.mp hi)).symm
         rw [Nat.add_comm (i.val - n) n] at this
-        simp [← this]
+        simp [j, ← this]
       rw [this]
       exact h₂ j
+
+/- show that under weak uniform condition, the right part of the swallow_pol is not zero
+for any char_pol of set with cardinality lower than #L + 1 - #K.-/
+lemma swallow_right_ne_zero (hwuni : weak_uniform F K L) (I : Finset α) (hI : I ⊆ X)
+    (hId : #I < #L + 1 - #K) : pol_to_eval (∏ i, (∑ j, MvPolynomial.X j - (
+    (K_indexed K) i : MvPolynomial X ℝ))) (Ω_char_vec I hI) ≠ 0 := by
+  by_contra hcon
+  simp only [pol_to_eval, Ω_char_vec, map_prod, map_sub, map_sum, AlgHom.coe_mk, RingHom.coe_mk,
+    MonoidHom.coe_mk, OneHom.coe_mk, MvPolynomial.eval_X, map_natCast, Pi.natCast_def, prod_apply,
+    Pi.sub_apply, sum_apply, char_vec, mem_val, sum_boole, prod_eq_zero_iff, mem_univ,
+    true_and] at hcon
+  obtain ⟨a, hcon⟩ := hcon
+  rw [set_val_mem_card_subNat_eq (hI := hI)] at hcon
+  norm_cast at hcon
+  rw [Int.subNat_eq_zero_iff] at hcon
+  have ha := ((K_indexed K) a).2
+  simp only [← hcon] at ha
+  rw [← Nat.Simproc.add_le_gt 0 hId, zero_add]
+  exact hwuni.2 (#I) ha
 
 /- show that if the coefficients of the char_pol are zero, the coefficients of the swallow_pol
 also have to be zero, due to its linear independence given by lemma 2.1-/
 lemma Ω_pol_family_left_coeff_zero (hwuni : weak_uniform F K L) (g : Fin (#F +
     #(ml_pol_deg_lt_n_set (#L + 1 - #K)).toFinset) → ℝ) (hg : ∑ i, g i • Ω_pol_family L hF K i = 0)
-    (hleft0 : ∀ (i : Fin #F),
-      g (Fin.castAdd (#(ml_pol_deg_lt_n_set (#L + 1 - #K)).toFinset) i) = 0) :
-    ∀ (j : Fin #(ml_pol_deg_lt_n_set (#L + 1 - #K)).toFinset), g (Fin.natAdd (#F) j) = 0 := by
-  simp only [Ω_pol_family, Fin.sum_univ_add, hleft0, Fin.append_left, zero_smul, sum_const_zero,
+    (h : ∀ (i : Fin #F), g (Fin.castAdd _ i) = 0) : ∀ j, g (Fin.natAdd (#F) j) = 0 := by
+  simp only [Ω_pol_family, Fin.sum_univ_add, h, Fin.append_left, zero_smul, sum_const_zero,
     Fin.append_right, zero_add] at hg
   let f := fun j => g (Fin.natAdd (#F) j)
   suffices f = 0 by exact fun j ↦ congrFun this j
   change ∑ x, f x • Ω_swallow_pol L x = 0 at hg
   simp only [Ω_swallow_pol_eq] at hg
   -- stating the linear independence using lemma 2.1, by proving the condition f(I) ≠ 0
-  have hlin := Lemma_2_1 (#L + 1 - #K) (pol_to_eval (∏ i : Fin #K,
-      ((∑ j : X, (MvPolynomial.X (R := ℝ) j)) - K_indexed K i : MvPolynomial X ℝ))) (by
-    intro I hI hId
-    by_contra hcon
-    simp only [pol_to_eval, Ω_char_vec, map_prod, map_sub, map_sum, AlgHom.coe_mk, RingHom.coe_mk,
-      MonoidHom.coe_mk, OneHom.coe_mk, MvPolynomial.eval_X, map_natCast, Pi.natCast_def, prod_apply,
-      Pi.sub_apply, sum_apply, char_vec, mem_val, sum_boole, prod_eq_zero_iff, mem_univ,
-      true_and] at hcon
-    obtain ⟨a, hcon⟩ := hcon
-    rw [set_val_mem_card_subNat_eq (hI := hI)] at hcon
-    norm_cast at hcon
-    rw [Int.subNat_eq_zero_iff] at hcon
-    have ha := ((K_indexed K) a).2
-    simp only [← hcon] at ha
-    have hk : #(image card F) ≤ #K := card_le_card hwuni.1
-    rw [← Nat.Simproc.add_le_gt 0 hId, zero_add]
-    exact hwuni.2 (#I) ha)
+  have hlin := Lemma_2_1 (R := ℝ) (X := X) (#L + 1 - #K) _
+    (fun I hI a ↦ swallow_right_ne_zero L hwuni I hI a)
   rw [← linearIndependent_set_coe_iff, linearIndependent_iff'ₛ] at hlin
   -- define a new f' for exerting it in hlin
   let f' := f ∘ (ml_pol_deg_lt_n_indexed L).symm
