@@ -21,10 +21,12 @@ import Mathlib.LinearAlgebra.InvariantBasisNumber
 import Mathlib.Data.ZMod.Defs
 import Mathlib.Data.ZMod.Basic
 import Mathlib.Algebra.Field.ZMod
+import Batteries.Data.Rat.Basic
 import RayChaudhuriWilson.intersection_card
 import RayChaudhuriWilson.Matrix_rank
 import RayChaudhuriWilson.Finset_card
 import RayChaudhuriWilson.fin_strong_induction
+
 
 
 open Finset
@@ -35,7 +37,13 @@ variable (X : Finset α) (n s k: ℕ) [hX: Fact (#X = n)] (p : ℕ) [hp : Fact p
 variable (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
 variable (μ : Fin (s + 1) →  ZMod p) (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
 
+#check Rat.instIntCast
 
+/-
+def something (x : ℕ ) (i : Fin (s + 1)) (a : Fin (s + 1) → ZMod p): ZMod p := 
+  (Rat.ofInt (a i).val) * (Nat.choose x i : ℚ) 
+-/
+-- → 
 
 def uniform_mod := ∀ (A : F), (#A.val.val : ZMod p) = (μ 0)
 
@@ -112,6 +120,7 @@ lemma N_transpose_N_eq_coe_N (i: Fin (s + 1)) : (incidence_matrix X i s)
 
 noncomputable instance: Module (ZMod p) (Polynomial (ZMod p)) := by infer_instance
 
+/--Define a polynomial with degree lower than n-/
 def polyLe (n : ℕ) : Submodule (ZMod p) (Polynomial (ZMod p)) :=
 { carrier := { p | p.natDegree ≤ n },
   zero_mem' := by simp,
@@ -126,6 +135,10 @@ def polyLe (n : ℕ) : Submodule (ZMod p) (Polynomial (ZMod p)) :=
       exact hp
 }
 
+def polyLe_eval (f : polyLe p s) (x_val: ZMod p):= Polynomial.eval x_val f.1
+
+
+/--Define 1/i! * (X * (X-1) * ... * (X - i + 1) ) as a polynomial of X-/
 noncomputable def binomVec (i : Fin (s + 1)) : (polyLe p s) := by
   refine' ⟨(1/(Nat.factorial i): ZMod p) • (descPochhammer (ZMod p) i.val), ?_⟩
   unfold polyLe
@@ -141,11 +154,53 @@ noncomputable def binomVec (i : Fin (s + 1)) : (polyLe p s) := by
 lemma binomVec_linearIndependent :
     LinearIndependent (ZMod p) (fun i : Fin (s + 1) =>
     (binomVec (s:=s) p i : polyLe p s)) := by
-  rw [linearIndependent_iff'']
-  intro S c hc hcoe i
+  rw [Fintype.linearIndependent_iff]
+  intro c hcoe i
   unfold binomVec at hcoe
   simp only [one_div, SetLike.mk_smul_mk] at hcoe
-  let p: Fin (s + 1) → Prop := fun x => (c x = 0)
+  let hp: Fin (s + 1) → Prop := fun x => (c x = 0)
+  have hz: hp (0: Fin (s+1)) := by
+    have h1:= congrArg (fun (f: polyLe p s) => (polyLe_eval s p f (0: ZMod p))) hcoe
+    unfold polyLe_eval at h1
+    simp only [AddSubmonoidClass.coe_finset_sum, ZeroMemClass.coe_zero, Polynomial.eval_zero] at h1
+    rw [Polynomial.eval_finset_sum, Finset.sum_eq_single_of_mem (0: Fin (s + 1))] at h1
+    · simp only [Fin.coe_ofNat_eq_mod, Nat.zero_mod, Nat.factorial_zero, Nat.cast_one, inv_one,
+      descPochhammer_zero, one_smul, Polynomial.eval_smul, Polynomial.eval_one, smul_eq_mul,
+      mul_one] at h1
+      exact h1
+    · exact mem_univ 0
+    · intro x huniv hx
+      simp only [Polynomial.eval_smul, smul_eq_mul, mul_eq_zero, inv_eq_zero]
+      right
+      right
+      rw [descPochhammer_eval_zero, if_neg (Fin.val_ne_zero_iff.mpr hx)]
+  apply fin_case_strong_induction_on i hz
+  intro j hjs hj
+  generalize hj₁ : (@Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1)) (j + 1)) = j₁ at *
+  have h1:= congrArg (fun (f: polyLe p s) => (polyLe_eval s p f j₁)) hcoe
+  have hjj : j₁.val = j + 1 := by
+    rw [← hj₁]
+    simp only [Fin.val_natCast, Nat.mod_succ_eq_iff_lt, Nat.succ_eq_add_one, add_lt_add_iff_right]
+    exact hjs
+  unfold hp
+  rw [Finset.sum_eq_single_of_mem j₁] at h1
+  · unfold polyLe_eval at h1
+    simp only [Polynomial.eval_smul, smul_eq_mul, ZeroMemClass.coe_zero, Polynomial.eval_zero,
+      mul_eq_zero, inv_eq_zero] at h1
+    cases' h1 with h1 h1
+    · exact h1
+    · cases' h1 with h1 h1
+      · exfalso
+        have h2: (j₁.val).factorial > 0 :=by exact Nat.factorial_pos j₁
+        
+        
+
+
+
+
+    simp only [Fin.val_natCast] at h1
+
+
   --TODO
   sorry
 
