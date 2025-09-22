@@ -125,14 +125,48 @@ lemma binomVec_linearIndependent :
 
 open Polynomial
 
-lemma binomVec_span_eq_top_of_card_eq_finrank: T ≤ Submodule.span ℤ (Set.range (fun i : Fin (s + 1) =>
-    (binomVec (s:=s) i : degreeLE ℤ s))) := by
-  sorry
+
+lemma binomVec_span_eq_top_of_card_eq_finrank: ⊤ ≤ Submodule.span ℤ (
+    Set.range (fun i : Fin (s + 1) => (binomVec (s:=s) i : degreeLE ℤ s))) := by
+  suffices degreeLE ℤ s ≤ Submodule.span ℤ (Set.range (fun i : Fin (s + 1) =>
+      (binomVec (s:=s) i).val)) by
+    intro x
+    simp only [Submodule.mem_top, forall_const]
+    have := this x.2
+    rw [@Submodule.mem_span_range_iff_exists_fun] at this ⊢
+    obtain ⟨c, hc⟩ := this
+    use c
+    apply Subtype.eq
+    simpa using hc
+  simp only [degreeLE_eq_span_X_pow, Submodule.span_le]
+  intro xd hxd
+  simp only [coe_image, coe_range, Set.mem_image, Set.mem_Iio] at hxd
+  obtain ⟨d, hd, rfl⟩ := hxd
+  induction' d using Nat.strong_induction_on with d ih
+  have hs : descPochhammer ℤ d ∈ Submodule.span ℤ (Set.range fun i ↦ (binomVec s i).val) := by
+    simp [binomVec]
+    rw [Submodule.mem_span_set']
+    use 1, 1, fun x => ⟨descPochhammer ℤ d, by use ⟨d, hd⟩⟩
+    simp
+  rw [← eraseLead_add_monomial_natDegree_leadingCoeff (descPochhammer ℤ d)] at hs
+  rw [monic_descPochhammer ℤ d, descPochhammer_natDegree, monomial_one_right_eq_X_pow] at hs
+  refine (add_mem_cancel_left ?_).mp hs
+  have hlt : degreeLT ℤ d ≤ Submodule.span ℤ (Set.range fun i ↦ (binomVec s i).val) := by
+    rw [degreeLT_eq_span_X_pow, Submodule.span_le]
+    intro _
+    simp only [coe_image, coe_range, Set.mem_image, Set.mem_Iio, SetLike.mem_coe,
+      forall_exists_index, and_imp]
+    rintro m hm rfl
+    exact ih m hm (Nat.lt_trans hm hd)
+  apply hlt
+  rw [mem_degreeLT]
+  have hne0 := Monic.ne_zero (monic_descPochhammer ℤ d)
+  have h := Polynomial.degree_eraseLead_lt hne0
+  suffices (descPochhammer ℤ d).degree = d by rwa [this] at h
+  rw [degree_eq_natDegree hne0, descPochhammer_natDegree]
 
 noncomputable def binomBasis : Module.Basis (Fin (s + 1)) ℤ (degreeLE ℤ s):=by
   exact Module.Basis.mk (binomVec_linearIndependent s) (binomVec_span_eq_top_of_card_eq_finrank s)
-
-
 
 lemma binomVec_sum_equivFun (f : Polynomial ℤ) (hf: f.natDegree ≤ s): ∃ (a : (Fin (s + 1)) → ℤ ),
     ∑ (i : (Fin (s + 1))), a i • (descPochhammer ℤ i.val) = f := by
@@ -148,7 +182,8 @@ lemma binomVec_sum_equivFun (f : Polynomial ℤ) (hf: f.natDegree ≤ s): ∃ (a
   simp only [AddSubmonoidClass.coe_finset_sum] at hf_coe'
   exact
     Exists.intro
-      (⇑((binomVec_linearIndependent s).repr ⟨⟨f, hf'⟩, binomBasis._proof_1 s Submodule.mem_top⟩))
+      (⇑((binomVec_linearIndependent s).repr
+          ⟨⟨f, hf'⟩, binomVec_span_eq_top_of_card_eq_finrank s Submodule.mem_top⟩))
       hf_coe'
 
 lemma temp1 (f : Polynomial ℤ) (hf: f.natDegree ≤ s):
@@ -257,6 +292,26 @@ lemma temp6 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
 
 -- f (∑ a, g (a)) = ∑ a, f g (a)
 
+lemma nat_cast_int_rat (a : ℕ): (Nat.cast (R:= ℚ) a) = Int.cast (R:=ℚ) (Nat.cast (R:= ℤ) a) :=by
+  simp only [Int.cast_natCast]
+
+
+
+@[simp]
+lemma instCast_sum (f : Fin (s + 1) → ℤ) (S: Finset (Fin (s + 1))) : (Int.cast (R:= ℚ) (∑ x ∈ S, f x)).num
+  = ∑ x ∈ S, (Int.cast (R:= ℚ) (f x)).num := by
+  let g : ℤ →+ ℤ :={
+    toFun := fun x =>  (Int.cast (R:= ℚ) x).num
+    map_zero' := by simp only [Int.cast_zero, Rat.num_ofNat]
+    map_add' x y:= by simp only [Rat.intCast_num]
+  }
+
+  have h1:= map_sum g f S
+  unfold g at h1
+  simp only [AddMonoidHom.coe_mk, ZeroHom.coe_mk] at h1
+  exact h1
+
+
 lemma temp7 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
     ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), (Polynomial.eval (x : ℤ) f) =
     ∑ (i : Fin (s + 1)), (a i) *
@@ -268,12 +323,12 @@ lemma temp7 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
   specialize ha x
   have ha' := congr_arg (fun (a : ℚ) => a.num) ha
   simp only [Rat.intCast_num, Int.cast_sum, Int.cast_mul, Int.cast_natCast] at ha'
+  simp_rw [nat_cast_int_rat] at ha'
+  simp_rw [(Rat.intCast_mul _ _).symm] at ha'
   rw [ha']
-  sorry
-
-
-
-
+  rw [← Int.cast_sum]
+  rw [instCast_sum]
+  rfl
 
 
 end descPochhammer
