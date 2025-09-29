@@ -1233,7 +1233,7 @@ theorem Ray_Chaudhuri_Wilson_Theorem (hF : ∀ A ∈ F, A ⊆ X) (huniform : uni
   have := Ray_Chaudhuri_Wilson_Theorem_generalized L hF this hwi
   simpa using this
 
-theorem Frankl_Wilson_strict_intersecting (hF : ∀ A ∈ F, A ⊆ X) (hintersect : intersecting F L):
+theorem Frankl_Wilson_intersecting (hF : ∀ A ∈ F, A ⊆ X) (hintersect : intersecting F L):
     #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
   obtain ⟨Ls, hLs, hsi⟩ := intersecting_exist_strict_intersecting hintersect
   have hu := strict_intersecting_weak_uniform_univ Ls hF hsi
@@ -1250,3 +1250,4 @@ theorem Frankl_Wilson_strict_intersecting (hF : ∀ A ∈ F, A ⊆ X) (hintersec
     exact card_le_card hLs) (by simp)
 
 end Ray_Chaudhuri_Wilson
+
