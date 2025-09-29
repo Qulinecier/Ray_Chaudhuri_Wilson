@@ -98,13 +98,12 @@ def weak_uniform (F: Finset (Finset α)) (K : Finset ℕ) (L : Finset ℕ) :=
   (F.image card) ⊆ K ∧ ∀ A ∈ K, (#L + 1 - #K) ≤ A
 
 /-
-since for theorem 1.1, it is clear that L is strictly equal to the set of all card of
+For theorem 1.1, it is clear that L is strictly equal to the set of all card of
 intersection of sets in F (otherwise you can adjust L's size so that #F ≤ 1, which is
 clearly not true in general), but for 1.3 and 1.4, it maybe more convenient to have more
-relaxed L (so L does not have to be strictly equal). Thus I defined the original intersecting
-to be "weak_intersecting".
+relaxed L (so L does not have to be strictly equal).
 -/
-def weak_intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
+def intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
   ∀ A ∈ F, ∀ B ∈ F, A ≠ B → #(A ∩ B) ∈ L
 
 noncomputable instance : Fintype {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)} := by
@@ -137,8 +136,8 @@ noncomputable instance : Fintype {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = 
     subst hFc
     simp
 
--- the "strict" intersecting condition used in theorem 1.1
-def intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
+-- the strict_intersecting condition used in theorem 1.1
+def strict_intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
   L = {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)}.toFinset
 
 lemma Nat_Finset_lt_if_bounded (L : Finset ℕ) (h : ∀ i ∈ L, i < n) : #L ≤ n := by
@@ -148,7 +147,7 @@ lemma Nat_Finset_lt_if_bounded (L : Finset ℕ) (h : ∀ i ∈ L, i < n) : #L �
   simp only [mem_range]
   exact h x hx
 
-lemma intersecting_card_le_if_F_bounded (L : Finset ℕ) (hsi : intersecting F L)
+lemma strict_intersecting_card_le_if_F_bounded (L : Finset ℕ) (hsi : strict_intersecting F L)
     (hFb : ∀ A ∈ F, #A ≤ n) : #L ≤ n := by
   apply Nat_Finset_lt_if_bounded
   intro i hi
@@ -172,16 +171,16 @@ lemma intersecting_card_le_if_F_bounded (L : Finset ℕ) (hsi : intersecting F L
     exact hFb A hA
 
 -- useful in proving theorem 1.1
-lemma uniform_intersecting_card_le (L : Finset ℕ) (hu : uniform F n)
-    (hsi : intersecting F L) : #L ≤ n := by
-  apply intersecting_card_le_if_F_bounded n L hsi
+lemma uniform_strict_intersecting_card_le (L : Finset ℕ) (hu : uniform F n)
+    (hsi : strict_intersecting F L) : #L ≤ n := by
+  apply strict_intersecting_card_le_if_F_bounded n L hsi
   exact fun A a ↦ Nat.le_of_eq (hu A a)
 
-lemma intersecting_L_card_bound (hF : ∀ A ∈ F, A ⊆ X) (hi : intersecting F L) : #L ≤ #X :=
-  intersecting_card_le_if_F_bounded #X L hi (fun A a ↦ card_le_card (hF A a))
+lemma strict_intersecting_L_card_bound (hF : ∀ A ∈ F, A ⊆ X) (hi : strict_intersecting F L) : #L ≤ #X :=
+  strict_intersecting_card_le_if_F_bounded #X L hi (fun A a ↦ card_le_card (hF A a))
 
--- give a weak_uniform condition from intersecting property for using theorem 1.4
-lemma intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : intersecting F L) :
+-- give a weak_uniform condition from strict_intersecting property for using theorem 1.4
+lemma strict_intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : strict_intersecting F L) :
     weak_uniform F (range (#X + 1)) L := by
   unfold weak_uniform
   simp only [mem_range, card_range, Nat.reduceSubDiff, tsub_le_iff_right]
@@ -191,7 +190,7 @@ lemma intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : intersect
     rintro x hx rfl
     rw [@Order.lt_add_one_iff]
     exact card_le_card (hF x hx)
-  · exact fun _ _ => le_add_of_le_right (intersecting_L_card_bound L hF hi)
+  · exact fun _ _ => le_add_of_le_right (strict_intersecting_L_card_bound L hF hi)
 
 -- if F is not empty and is k-uniform, then the set of #A for all A ∈ F is the singleton {k}.
 lemma image_card_of_uniform_not_empty (hu : uniform F n) (hF : ¬ F = ∅) : image card F = {n} := by
@@ -207,8 +206,7 @@ lemma image_card_of_uniform_not_empty (hu : uniform F n) (hF : ¬ F = ∅) : ima
     exact ⟨ha, hu a ha⟩
 
 -- useful in proving theorem 1.1 from 1.4, as theorem 1.4 only have weak_uniform condition
--- Don't try to show the case when n = 0, since when n = 0 this lemma simply does not hold.
-lemma uniform_weak_uniform (hn : 0 < n) (hsi : intersecting F L) (hu : uniform F n) :
+lemma uniform_weak_uniform (hsi : strict_intersecting F L) (hu : uniform F n) :
     weak_uniform F {n} L := by
   by_cases hL : 0 < #L
   · by_cases hexist : ∃ a, a ∈ F
@@ -218,10 +216,10 @@ lemma uniform_weak_uniform (hn : 0 < n) (hsi : intersecting F L) (hu : uniform F
       constructor
       · rw [hleft]
       · simp only [mem_singleton, card_singleton, add_tsub_cancel_right, forall_eq]
-        exact uniform_intersecting_card_le n L hu hsi
+        exact uniform_strict_intersecting_card_le n L hu hsi
     · simp only [not_exists, ← @eq_empty_iff_forall_not_mem] at hexist
       subst hexist
-      simp only [intersecting, not_mem_empty, ne_eq, false_and, exists_const, and_self,
+      simp only [strict_intersecting, not_mem_empty, ne_eq, false_and, exists_const, and_self,
         Set.setOf_false, Set.toFinset_empty] at hsi
       subst hsi
       simp at hL
@@ -232,11 +230,11 @@ lemma uniform_weak_uniform (hn : 0 < n) (hsi : intersecting F L) (hu : uniform F
       by_cases hempt : F = ∅
       · exact Or.inl hempt
       · simp [image_card_of_uniform_not_empty n hu hempt]
-    · simp [hn]
+    · simp
 
 -- also useful in proving theorem 1.1 from 1.4 for similar reason as above
-lemma intersecting_weak_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
-    intersecting F L → weak_intersecting F L := by
+lemma strict_intersecting_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
+    strict_intersecting F L → intersecting F L := by
   rintro hL A hA B hB hne
   subst hL
   simp only [Set.mem_toFinset, Set.mem_setOf_eq]
@@ -244,10 +242,10 @@ lemma intersecting_weak_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
   simp only [hA, true_and]
   use B
 
--- Find a (strict) intersecting set Ls from weak-intersecting set L.
-lemma weak_intersecting_exist_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
-    weak_intersecting F L → ∃ Ls ⊆ L, intersecting F Ls := by
-  unfold intersecting weak_intersecting
+-- Find a (strict) strict_intersecting set Ls from weak-strict_intersecting set L.
+lemma intersecting_exist_strict_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
+    intersecting F L → ∃ Ls ⊆ L, strict_intersecting F Ls := by
+  unfold strict_intersecting intersecting
   intro h
   use {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)}.toFinset
   simp only [ne_eq, Set.toFinset_subset, Set.coe_toFinset, and_true]
@@ -860,10 +858,10 @@ lemma char_pol_spec_1 (i : Fin #F): Ω_char_pol L hF i
 
 /- Show that the characteristic polynomial is zero for
 the characteristic vector of B with lower cardinality.-/
-lemma char_pol_spec_2 (hintersect : weak_intersecting F L)
+lemma char_pol_spec_2 (hintersect : intersecting F L)
     (i j : Fin #F) (hneq : i ≠ j) (hji : #(F_indexed j).val ≤ #(F_indexed i).val) :
     Ω_char_pol L hF i (Ω_char_vec _ (hF _ (F_indexed j).2)) = 0 := by
-  unfold weak_intersecting at hintersect
+  unfold intersecting at hintersect
   let A := (F_indexed i)
   let B := (F_indexed j)
   suffices (char_pol L hF A).eval (char_vec B (hF B B.2)) = (0 : ℝ) by
@@ -1152,7 +1150,7 @@ lemma Finsupp_sum_eq_Fintype_sum_univ {R : Type u_1} [Semiring R] {M : Type u_2}
   simp [h]
 
 -- Show that the characteristic polynomials are in fact linear independent
-lemma Ω_pol_family_lin_indep (hinter : weak_intersecting F L) (hwuni : weak_uniform F K L):
+lemma Ω_pol_family_lin_indep (hinter : intersecting F L) (hwuni : weak_uniform F K L):
     LinearIndependent ℝ (Ω_pol_family L hF K):= by
   by_contra hcon
   rw [@Fintype.not_linearIndependent_iff] at hcon
@@ -1204,7 +1202,7 @@ lemma Ω_pol_family_lin_indep (hinter : weak_intersecting F L) (hwuni : weak_uni
 
 -- This lemma proves generalized Ray_Chaudhuri_Wilson_Theorem.
 lemma Ray_Chaudhuri_Wilson_Theorem_generalized (hF : ∀ A ∈ F, A ⊆ X) (hu : weak_uniform F K L)
-    (hi : weak_intersecting F L): #F ≤ ∑ m ∈ Ico (#L + 1 - #K) (#L + 1), Nat.choose #X m := by
+    (hi : intersecting F L): #F ≤ ∑ m ∈ Ico (#L + 1 - #K) (#L + 1), Nat.choose #X m := by
   have h : (#L + 1 - #K) ≤ (#L + 1) := by simp
   rw [← Nat.cast_le (α := ℝ), Nat.cast_sum, Finset.sum_Ico_eq_sub (fun x => ((#X).choose x : ℝ)) h]
   have h := linearIndependent_span (Ω_pol_family_lin_indep L hF hi hu)
@@ -1229,40 +1227,17 @@ lemma Ray_Chaudhuri_Wilson_Theorem_generalized (hF : ∀ A ∈ F, A ⊆ X) (hu :
 
 -- proving Ray_Chaudhuri_Wilson_Theorem from the generalized version.
 theorem Ray_Chaudhuri_Wilson_Theorem (hF : ∀ A ∈ F, A ⊆ X) (huniform : uniform F n)
-    (hintersect : intersecting F L): #F ≤ Nat.choose #X #L := by
-  by_cases hn : 0 < n
-  · have := uniform_weak_uniform n L hn hintersect huniform
-    have hwi := intersecting_weak_intersecting hintersect
-    have := Ray_Chaudhuri_Wilson_Theorem_generalized L hF this hwi
-    simpa using this
-  simp only [not_lt, nonpos_iff_eq_zero] at hn
-  subst hn
-  simp [uniform] at huniform
-  have hF : F ⊆ {∅} := by
-    intro x hx
-    simp only [mem_singleton]
-    exact huniform x hx
-  calc
-  _ ≤ #{∅} := card_le_card hF
-  _ = 1 := rfl
-  _ ≤ _ := by
-    apply Nat.choose_pos
-    suffices #L = 0 by rw [this]; exact Nat.zero_le #X
-    simp only [card_eq_zero]
-    rw [hintersect]
-    ext x
-    simp only [ne_eq, Set.mem_toFinset, Set.mem_setOf_eq, not_mem_empty, iff_false, not_exists,
-      not_and]
-    intro x1 hx1 x2 hx2 hneq
-    exfalso
-    rw [huniform x1 hx1, ← huniform x2 hx2] at hneq
-    exact hneq rfl
+    (hintersect : strict_intersecting F L): #F ≤ Nat.choose #X #L := by
+  have := uniform_weak_uniform n L hintersect huniform
+  have hwi := strict_intersecting_intersecting hintersect
+  have := Ray_Chaudhuri_Wilson_Theorem_generalized L hF this hwi
+  simpa using this
 
-theorem Frankl_Wilson_intersecting (hF : ∀ A ∈ F, A ⊆ X) (hintersect : weak_intersecting F L):
+theorem Frankl_Wilson_strict_intersecting (hF : ∀ A ∈ F, A ⊆ X) (hintersect : intersecting F L):
     #F ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
-  obtain ⟨Ls, hLs, hsi⟩ := weak_intersecting_exist_intersecting hintersect
-  have hu := intersecting_weak_uniform_univ Ls hF hsi
-  have hwi := intersecting_weak_intersecting hsi
+  obtain ⟨Ls, hLs, hsi⟩ := intersecting_exist_strict_intersecting hintersect
+  have hu := strict_intersecting_weak_uniform_univ Ls hF hsi
+  have hwi := strict_intersecting_intersecting hsi
   have := Ray_Chaudhuri_Wilson_Theorem_generalized Ls hF hu hwi
   simp only [card_range, Nat.reduceSubDiff] at this
   refine le_trans this ?_
