@@ -87,171 +87,9 @@ theorem sorted_linearIndepOn {α : Type u_1} {ι : Type u_2} {s : Set ι} [Finty
   simp only [ne_eq, not_exists, not_and, not_not]
   exact sorted_linearComb_zero S Sn h
 
-variable {α : Type} (n : ℕ) [DecidableEq α] {X: Finset α}
-  {F: Finset (Finset α)} (L : Finset ℕ)
+variable {α : Type} (n : ℕ) [DecidableEq α] {X: Finset α} (L : Finset ℕ)
 
--- uniform is referring to the condition of theorem 1.1
-def uniform (F: Finset (Finset α)) (k : ℕ): Prop := ∀ A ∈ F, #A = k
 
--- weak_uniform is referring to the condition of theorem 1.4
-def weak_uniform (F: Finset (Finset α)) (K : Finset ℕ) (L : Finset ℕ) :=
-  (F.image card) ⊆ K ∧ ∀ A ∈ K, (#L + 1 - #K) ≤ A
-
-/-
-For theorem 1.1, it is clear that L is strictly equal to the set of all card of
-intersection of sets in F (otherwise you can adjust L's size so that #F ≤ 1, which is
-clearly not true in general), but for 1.3 and 1.4, it maybe more convenient to have more
-relaxed L (so L does not have to be strictly equal).
--/
-def intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
-  ∀ A ∈ F, ∀ B ∈ F, A ≠ B → #(A ∩ B) ∈ L
-
-noncomputable instance : Fintype {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)} := by
-  refine Set.Finite.fintype ?_
-  let Fc : Finset ℕ := image (fun x => #x) F
-  by_cases hFc : Fc.Nonempty
-  · have hFcm := Fc.max'_mem hFc
-    simp only [Fc, mem_image] at hFcm
-    obtain ⟨a, ha, hac⟩ := hFcm
-    refine Set.Finite.subset (finite_toSet (range #a)) ?_
-    intro x
-    simp only [ne_eq, Set.mem_setOf_eq, coe_range, Set.mem_Iio, forall_exists_index, and_imp]
-    rintro A hA B hB hneq rfl
-    wlog hAB : #B ≤ #A generalizing A B
-    · have := this B hB A hA (fun a ↦ hneq a.symm) (Nat.le_of_succ_le (not_le.mp hAB))
-      rwa [@inter_comm] at this
-    · have : #(A ∩ B) < #A := by
-        apply card_lt_card
-        simp only [Finset.ssubset_iff_subset_ne, inter_subset_left, ne_eq, inter_eq_left, true_and]
-        by_contra hcon
-        have : #A < #B := card_lt_card (HasSubset.Subset.ssubset_of_ne hcon hneq)
-        rw [@lt_iff_not_le] at this
-        exact this hAB
-      refine Nat.lt_of_lt_of_le this ?_
-      rw [hac]
-      apply Finset.le_max'
-      simp only [mem_image]
-      use A
-  · simp only [image_nonempty, not_nonempty_iff_eq_empty, Fc] at hFc
-    subst hFc
-    simp
-
--- the strict_intersecting condition used in theorem 1.1
-def strict_intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
-  L = {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)}.toFinset
-
-lemma Nat_Finset_lt_if_bounded (L : Finset ℕ) (h : ∀ i ∈ L, i < n) : #L ≤ n := by
-  rw [← card_range n]
-  refine card_le_card ?_
-  intro x hx
-  simp only [mem_range]
-  exact h x hx
-
-lemma strict_intersecting_card_le_if_F_bounded (L : Finset ℕ) (hsi : strict_intersecting F L)
-    (hFb : ∀ A ∈ F, #A ≤ n) : #L ≤ n := by
-  apply Nat_Finset_lt_if_bounded
-  intro i hi
-  subst hsi
-  simp only [Set.mem_toFinset, Set.mem_setOf_eq] at hi
-  obtain ⟨A, hA, B, hB, hneq, rfl⟩ := hi
-  wlog hAB : #B ≤ #A generalizing A B
-  · have := this B hB A hA (fun a ↦ hneq a.symm) (Nat.le_of_succ_le (not_le.mp hAB))
-    rwa [@inter_comm] at this
-  · have : #(A ∩ B) < #A := by
-      apply card_lt_card
-      rw [@Finset.ssubset_iff_subset_ne]
-      constructor
-      · exact inter_subset_left
-      · by_contra hcon
-        simp only [inter_eq_left] at hcon
-        have : #A < #B := card_lt_card (HasSubset.Subset.ssubset_of_ne hcon hneq)
-        rw [@lt_iff_not_le] at this
-        exact this hAB
-    refine Nat.lt_of_lt_of_le this ?_
-    exact hFb A hA
-
--- useful in proving theorem 1.1
-lemma uniform_strict_intersecting_card_le (L : Finset ℕ) (hu : uniform F n)
-    (hsi : strict_intersecting F L) : #L ≤ n := by
-  apply strict_intersecting_card_le_if_F_bounded n L hsi
-  exact fun A a ↦ Nat.le_of_eq (hu A a)
-
-lemma strict_intersecting_L_card_bound (hF : ∀ A ∈ F, A ⊆ X) (hi : strict_intersecting F L) : #L ≤ #X :=
-  strict_intersecting_card_le_if_F_bounded #X L hi (fun A a ↦ card_le_card (hF A a))
-
--- give a weak_uniform condition from strict_intersecting property for using theorem 1.4
-lemma strict_intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : strict_intersecting F L) :
-    weak_uniform F (range (#X + 1)) L := by
-  unfold weak_uniform
-  simp only [mem_range, card_range, Nat.reduceSubDiff, tsub_le_iff_right]
-  constructor
-  · intro n
-    simp only [mem_image, mem_range, forall_exists_index, and_imp]
-    rintro x hx rfl
-    rw [@Order.lt_add_one_iff]
-    exact card_le_card (hF x hx)
-  · exact fun _ _ => le_add_of_le_right (strict_intersecting_L_card_bound L hF hi)
-
--- if F is not empty and is k-uniform, then the set of #A for all A ∈ F is the singleton {k}.
-lemma image_card_of_uniform_not_empty (hu : uniform F n) (hF : ¬ F = ∅) : image card F = {n} := by
-  ext x
-  simp only [mem_image, mem_singleton, forall_exists_index, and_imp]
-  constructor
-  · rintro ⟨A, hA, rfl⟩; exact hu A hA
-  · rintro ⟨rfl⟩
-    rw [@eq_empty_iff_forall_not_mem] at hF
-    simp only [not_forall, Decidable.not_not] at hF
-    obtain ⟨a, ha⟩ := hF
-    use a
-    exact ⟨ha, hu a ha⟩
-
--- useful in proving theorem 1.1 from 1.4, as theorem 1.4 only have weak_uniform condition
-lemma uniform_weak_uniform (hsi : strict_intersecting F L) (hu : uniform F n) :
-    weak_uniform F {n} L := by
-  by_cases hL : 0 < #L
-  · by_cases hexist : ∃ a, a ∈ F
-    · have hleft : image card F = {n} := by
-        rw [← @not_forall_not, ← eq_empty_iff_forall_not_mem] at hexist
-        exact image_card_of_uniform_not_empty n hu hexist
-      constructor
-      · rw [hleft]
-      · simp only [mem_singleton, card_singleton, add_tsub_cancel_right, forall_eq]
-        exact uniform_strict_intersecting_card_le n L hu hsi
-    · simp only [not_exists, ← @eq_empty_iff_forall_not_mem] at hexist
-      subst hexist
-      simp only [strict_intersecting, not_mem_empty, ne_eq, false_and, exists_const, and_self,
-        Set.setOf_false, Set.toFinset_empty] at hsi
-      subst hsi
-      simp at hL
-  · simp only [card_pos, not_nonempty_iff_eq_empty] at hL
-    subst hL
-    constructor
-    · simp only [subset_singleton_iff, image_eq_empty]
-      by_cases hempt : F = ∅
-      · exact Or.inl hempt
-      · simp [image_card_of_uniform_not_empty n hu hempt]
-    · simp
-
--- also useful in proving theorem 1.1 from 1.4 for similar reason as above
-lemma strict_intersecting_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
-    strict_intersecting F L → intersecting F L := by
-  rintro hL A hA B hB hne
-  subst hL
-  simp only [Set.mem_toFinset, Set.mem_setOf_eq]
-  use A
-  simp only [hA, true_and]
-  use B
-
--- Find a (strict) strict_intersecting set Ls from weak-strict_intersecting set L.
-lemma intersecting_exist_strict_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
-    intersecting F L → ∃ Ls ⊆ L, strict_intersecting F Ls := by
-  unfold strict_intersecting intersecting
-  intro h
-  use {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)}.toFinset
-  simp only [ne_eq, Set.toFinset_subset, Set.coe_toFinset, and_true]
-  intro x
-  simp only [Set.mem_setOf_eq, forall_exists_index, and_imp]
-  exact fun x_1 a x_2 a_1 a_2 a_3 ↦ Set.mem_of_eq_of_mem a_3 (h x_1 a x_2 a_1 a_2)
 
 
 --Ω is defined as X → {0, 1} in paper, and in this code it is defined as a subset of X → R.
@@ -680,12 +518,12 @@ theorem card_Ω_multilinear_set : #(Ω_multilinear_set (R := R) (X := X) n).toFi
 
 -- The span of Ω_multilinear_set
 def Ω_multilinear_span : Submodule R (@Ω R _ α X → R) :=
-  Submodule.span R (Ω_multilinear_set (#L + 1))
+  Submodule.span R (Ω_multilinear_set n)
 
 -- Show that any monomials of degree no greater than #L is in the span of Ω_multilinear_set.
 omit [DecidableEq α] in
-theorem monomial_in_Ω_span (v : X →₀ ℕ) (hv : (v.sum fun x e ↦ e) ≤ #L):
-    pol_to_eval (MvPolynomial.monomial (R := R) v 1) ∈ Ω_multilinear_span L := by
+theorem monomial_in_Ω_span (v : X →₀ ℕ) (hv : (v.sum fun x e ↦ e) ≤ n):
+    pol_to_eval (MvPolynomial.monomial (R := R) v 1) ∈ Ω_multilinear_span (n + 1) := by
   refine Submodule.mem_span.mpr fun p a ↦ a ?_
   use (MvPolynomial.monomial v) 1
   constructor
@@ -696,8 +534,8 @@ theorem monomial_in_Ω_span (v : X →₀ ℕ) (hv : (v.sum fun x e ↦ e) ≤ #
 
 -- Show that any polynomial with totaldegree ≤ #L is in the Ω_multilinear_span after evaluation.
 omit [DecidableEq α] in
-lemma Ω_multilinear_span_deg_le_mem (f : MvPolynomial X R) (hdeg : f.totalDegree ≤ #L) :
-    pol_to_eval f ∈ Ω_multilinear_span (X := X) L := by
+lemma Ω_multilinear_span_deg_le_mem (f : MvPolynomial X R) (hdeg : f.totalDegree ≤ n) :
+    pol_to_eval f ∈ Ω_multilinear_span (X := X) (n + 1) := by
   rw [MvPolynomial.as_sum f, map_sum]
   apply Submodule.sum_mem
   intro v hv
@@ -705,16 +543,16 @@ lemma Ω_multilinear_span_deg_le_mem (f : MvPolynomial X R) (hdeg : f.totalDegre
     a • (MvPolynomial.monomial v 1) := by
     rw [@MvPolynomial.smul_monomial]
     simp
-  suffices pol_to_eval ((MvPolynomial.monomial v) (1 : R)) ∈ Ω_multilinear_span L by
+  suffices pol_to_eval ((MvPolynomial.monomial v) (1 : R)) ∈ Ω_multilinear_span (n + 1) by
     rw [hsmul, map_smul]
-    exact Submodule.smul_mem (Ω_multilinear_span L) (MvPolynomial.coeff v f) this
+    exact Submodule.smul_mem (Ω_multilinear_span (n + 1)) (MvPolynomial.coeff v f) this
   apply monomial_in_Ω_span
   exact le_trans (MvPolynomial.le_totalDegree hv) hdeg
 
 -- Show that the rank of the span of Ω_multilinear_set is = its cardinality
-lemma dim_Ω_multilinear_span : Module.rank R (Ω_multilinear_span (R := R) (X := X) L) ≤
-    ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m := by
-  have h := rank_span_finset_le (R := R) (Ω_multilinear_set (R := R) (X := X) (#L + 1)).toFinset
+lemma dim_Ω_multilinear_span : Module.rank R (Ω_multilinear_span (R := R) (X := X) n) ≤
+    ∑ m ∈ Finset.range n, Nat.choose #X m := by
+  have h := rank_span_finset_le (R := R) (Ω_multilinear_set (R := R) (X := X) n).toFinset
   rw [Set.coe_toFinset] at h
   rw [← card_Ω_multilinear_set (R := R)]
   exact h
@@ -774,7 +612,170 @@ theorem Lemma_2_1 [DecidableEq R] (f : @Ω R _ α X → R) (hf : ∀ I , (hI : I
 
 namespace Ray_Chaudhuri_Wilson
 
+variable {F: Finset (Finset α)}
 
+-- uniform is referring to the condition of theorem 1.1
+def uniform (F: Finset (Finset α)) (k : ℕ): Prop := ∀ A ∈ F, #A = k
+
+-- weak_uniform is referring to the condition of theorem 1.4
+def weak_uniform (F: Finset (Finset α)) (K : Finset ℕ) (L : Finset ℕ) :=
+  (F.image card) ⊆ K ∧ ∀ A ∈ K, (#L + 1 - #K) ≤ A
+
+/-
+For theorem 1.1, it is clear that L is strictly equal to the set of all card of
+intersection of sets in F (otherwise you can adjust L's size so that #F ≤ 1, which is
+clearly not true in general), but for 1.3 and 1.4, it maybe more convenient to have more
+relaxed L (so L does not have to be strictly equal).
+-/
+def intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
+  ∀ A ∈ F, ∀ B ∈ F, A ≠ B → #(A ∩ B) ∈ L
+
+noncomputable instance : Fintype {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)} := by
+  refine Set.Finite.fintype ?_
+  let Fc : Finset ℕ := image (fun x => #x) F
+  by_cases hFc : Fc.Nonempty
+  · have hFcm := Fc.max'_mem hFc
+    simp only [Fc, mem_image] at hFcm
+    obtain ⟨a, ha, hac⟩ := hFcm
+    refine Set.Finite.subset (finite_toSet (range #a)) ?_
+    intro x
+    simp only [ne_eq, Set.mem_setOf_eq, coe_range, Set.mem_Iio, forall_exists_index, and_imp]
+    rintro A hA B hB hneq rfl
+    wlog hAB : #B ≤ #A generalizing A B
+    · have := this B hB A hA (fun a ↦ hneq a.symm) (Nat.le_of_succ_le (not_le.mp hAB))
+      rwa [@inter_comm] at this
+    · have : #(A ∩ B) < #A := by
+        apply card_lt_card
+        simp only [Finset.ssubset_iff_subset_ne, inter_subset_left, ne_eq, inter_eq_left, true_and]
+        by_contra hcon
+        have : #A < #B := card_lt_card (HasSubset.Subset.ssubset_of_ne hcon hneq)
+        rw [@lt_iff_not_le] at this
+        exact this hAB
+      refine Nat.lt_of_lt_of_le this ?_
+      rw [hac]
+      apply Finset.le_max'
+      simp only [mem_image]
+      use A
+  · simp only [image_nonempty, not_nonempty_iff_eq_empty, Fc] at hFc
+    subst hFc
+    simp
+
+-- the strict_intersecting condition used in theorem 1.1
+def strict_intersecting (F: Finset (Finset α)) (L : Finset ℕ) :=
+  L = {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)}.toFinset
+
+lemma Nat_Finset_lt_if_bounded (L : Finset ℕ) (h : ∀ i ∈ L, i < n) : #L ≤ n := by
+  rw [← card_range n]
+  refine card_le_card ?_
+  intro x hx
+  simp only [mem_range]
+  exact h x hx
+
+lemma strict_intersecting_card_le_if_F_bounded (L : Finset ℕ) (hsi : strict_intersecting F L)
+    (hFb : ∀ A ∈ F, #A ≤ n) : #L ≤ n := by
+  apply Nat_Finset_lt_if_bounded
+  intro i hi
+  subst hsi
+  simp only [Set.mem_toFinset, Set.mem_setOf_eq] at hi
+  obtain ⟨A, hA, B, hB, hneq, rfl⟩ := hi
+  wlog hAB : #B ≤ #A generalizing A B
+  · have := this B hB A hA (fun a ↦ hneq a.symm) (Nat.le_of_succ_le (not_le.mp hAB))
+    rwa [@inter_comm] at this
+  · have : #(A ∩ B) < #A := by
+      apply card_lt_card
+      rw [@Finset.ssubset_iff_subset_ne]
+      constructor
+      · exact inter_subset_left
+      · by_contra hcon
+        simp only [inter_eq_left] at hcon
+        have : #A < #B := card_lt_card (HasSubset.Subset.ssubset_of_ne hcon hneq)
+        rw [@lt_iff_not_le] at this
+        exact this hAB
+    refine Nat.lt_of_lt_of_le this ?_
+    exact hFb A hA
+
+-- useful in proving theorem 1.1
+lemma uniform_strict_intersecting_card_le (L : Finset ℕ) (hu : uniform F n)
+    (hsi : strict_intersecting F L) : #L ≤ n := by
+  apply strict_intersecting_card_le_if_F_bounded n L hsi
+  exact fun A a ↦ Nat.le_of_eq (hu A a)
+
+lemma strict_intersecting_L_card_bound (hF : ∀ A ∈ F, A ⊆ X) (hi : strict_intersecting F L) : #L ≤ #X :=
+  strict_intersecting_card_le_if_F_bounded #X L hi (fun A a ↦ card_le_card (hF A a))
+
+-- give a weak_uniform condition from strict_intersecting property for using theorem 1.4
+lemma strict_intersecting_weak_uniform_univ (hF : ∀ A ∈ F, A ⊆ X) (hi : strict_intersecting F L) :
+    weak_uniform F (range (#X + 1)) L := by
+  unfold weak_uniform
+  simp only [mem_range, card_range, Nat.reduceSubDiff, tsub_le_iff_right]
+  constructor
+  · intro n
+    simp only [mem_image, mem_range, forall_exists_index, and_imp]
+    rintro x hx rfl
+    rw [@Order.lt_add_one_iff]
+    exact card_le_card (hF x hx)
+  · exact fun _ _ => le_add_of_le_right (strict_intersecting_L_card_bound L hF hi)
+
+-- if F is not empty and is k-uniform, then the set of #A for all A ∈ F is the singleton {k}.
+lemma image_card_of_uniform_not_empty (hu : uniform F n) (hF : ¬ F = ∅) : image card F = {n} := by
+  ext x
+  simp only [mem_image, mem_singleton, forall_exists_index, and_imp]
+  constructor
+  · rintro ⟨A, hA, rfl⟩; exact hu A hA
+  · rintro ⟨rfl⟩
+    rw [@eq_empty_iff_forall_not_mem] at hF
+    simp only [not_forall, Decidable.not_not] at hF
+    obtain ⟨a, ha⟩ := hF
+    use a
+    exact ⟨ha, hu a ha⟩
+
+-- useful in proving theorem 1.1 from 1.4, as theorem 1.4 only have weak_uniform condition
+lemma uniform_weak_uniform (hsi : strict_intersecting F L) (hu : uniform F n) :
+    weak_uniform F {n} L := by
+  by_cases hL : 0 < #L
+  · by_cases hexist : ∃ a, a ∈ F
+    · have hleft : image card F = {n} := by
+        rw [← @not_forall_not, ← eq_empty_iff_forall_not_mem] at hexist
+        exact image_card_of_uniform_not_empty n hu hexist
+      constructor
+      · rw [hleft]
+      · simp only [mem_singleton, card_singleton, add_tsub_cancel_right, forall_eq]
+        exact uniform_strict_intersecting_card_le n L hu hsi
+    · simp only [not_exists, ← @eq_empty_iff_forall_not_mem] at hexist
+      subst hexist
+      simp only [strict_intersecting, not_mem_empty, ne_eq, false_and, exists_const, and_self,
+        Set.setOf_false, Set.toFinset_empty] at hsi
+      subst hsi
+      simp at hL
+  · simp only [card_pos, not_nonempty_iff_eq_empty] at hL
+    subst hL
+    constructor
+    · simp only [subset_singleton_iff, image_eq_empty]
+      by_cases hempt : F = ∅
+      · exact Or.inl hempt
+      · simp [image_card_of_uniform_not_empty n hu hempt]
+    · simp
+
+-- also useful in proving theorem 1.1 from 1.4 for similar reason as above
+lemma strict_intersecting_intersecting {F: Finset (Finset α)} {L : Finset ℕ} :
+    strict_intersecting F L → intersecting F L := by
+  rintro hL A hA B hB hne
+  subst hL
+  simp only [Set.mem_toFinset, Set.mem_setOf_eq]
+  use A
+  simp only [hA, true_and]
+  use B
+
+-- Find a (strict) strict_intersecting set Ls from weak-strict_intersecting set L.
+lemma intersecting_exist_strict_intersecting {F: Finset (Finset α)} {L : Finset ℕ}:
+    intersecting F L → ∃ Ls ⊆ L, strict_intersecting F Ls := by
+  unfold strict_intersecting intersecting
+  intro h
+  use {x | ∃ A ∈ F, ∃ B ∈ F, A ≠ B ∧ x = #(A ∩ B)}.toFinset
+  simp only [ne_eq, Set.toFinset_subset, Set.coe_toFinset, and_true]
+  intro x
+  simp only [Set.mem_setOf_eq, forall_exists_index, and_imp]
+  exact fun x_1 a x_2 a_1 a_2 a_3 ↦ Set.mem_of_eq_of_mem a_3 (h x_1 a x_2 a_1 a_2)
 
 variable (hF : ∀ A ∈ F, A ⊆ X)
 
@@ -837,9 +838,9 @@ lemma Ω_char_pol_eq (i : Fin #F) : Ω_char_pol L hF i
     = pol_to_eval (char_pol L hF (F_indexed i)) := rfl
 
 -- Show that the characteristic polynomial is also in the span of Ω_multilinear_set.
-lemma Ω_char_pol_spec (i : Fin #F): Ω_char_pol L hF i ∈ Ω_multilinear_span L := by
+lemma Ω_char_pol_spec (i : Fin #F): Ω_char_pol L hF i ∈ Ω_multilinear_span (#L + 1) := by
   rw [Ω_char_pol_eq]
-  exact Ω_multilinear_span_deg_le_mem L (char_pol L hF _) (char_pol_degree L hF _)
+  exact Ω_multilinear_span_deg_le_mem #L (char_pol L hF _) (char_pol_degree L hF _)
 
 -- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
 lemma char_pol_spec_1 (i : Fin #F): Ω_char_pol L hF i
@@ -959,8 +960,8 @@ noncomputable def Ω_swallow_pol (i : Fin #(@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1
 
 -- Show that the characteristic polynomial is also in the span of Ω_multilinear_set.
 lemma Ω_swallow_pol_spec (i : Fin #(@ml_pol_deg_lt_n_set ℝ _ _
-    (#L + 1 - #K) X).toFinset) : Ω_swallow_pol L i ∈ Ω_multilinear_span L := by
-  exact Ω_multilinear_span_deg_le_mem L _ (swallow_pol_degree L _)
+    (#L + 1 - #K) X).toFinset) : Ω_swallow_pol L i ∈ Ω_multilinear_span (#L + 1) := by
+  exact Ω_multilinear_span_deg_le_mem #L _ (swallow_pol_degree L _)
 
 -- This lemma gives a more handy definition of Ω_char_pol in preperation for lemma 2.1
 lemma Ω_swallow_pol_eq (i : Fin #(@ml_pol_deg_lt_n_set ℝ _ _ (#L + 1 - #K) X).toFinset) :
@@ -1030,9 +1031,9 @@ def Ω_pol_span (K : Finset ℕ) : Submodule ℝ (@Ω ℝ _ α X → ℝ) :=
 
 /- Show that the span of the characteristic polynomial is
   included in the span of Ω_multilinear_set.-/
-lemma span_to_R_le_span_ml : (Ω_pol_span L hF K) ≤ Ω_multilinear_span L := by
+lemma span_to_R_le_span_ml : (Ω_pol_span L hF K) ≤ Ω_multilinear_span (#L + 1) := by
   unfold Ω_pol_span
-  suffices Set.range (Ω_pol_family L hF K) ⊆ (Ω_multilinear_span (R := ℝ) (X := X) L) by
+  suffices Set.range (Ω_pol_family L hF K) ⊆ (Ω_multilinear_span (R := ℝ) (X := X) (#L + 1)) by
     exact Submodule.span_le.mpr this
   intro x hx
   simp only [@Set.mem_range, Ω_pol_family] at hx
@@ -1046,9 +1047,9 @@ lemma span_to_R_le_span_ml : (Ω_pol_span L hF K) ≤ Ω_multilinear_span L := b
 lemma dim_span_to_R_le : Module.rank ℝ (Ω_pol_span L hF K)
     ≤ ∑ m ∈ Finset.range (#L + 1), Nat.choose #X m:= by
   exact Preorder.le_trans (Module.rank ℝ (Ω_pol_span L hF K))
-    (Module.rank ℝ (Ω_multilinear_span (X := X) L))
+    (Module.rank ℝ (Ω_multilinear_span (X := X) (#L + 1)))
     (↑(∑ m ∈ range (#L + 1), (#X).choose m))
-    (Submodule.rank_mono (span_to_R_le_span_ml L hF)) (dim_Ω_multilinear_span L)
+    (Submodule.rank_mono (span_to_R_le_span_ml L hF)) (dim_Ω_multilinear_span (#L + 1))
 
 /- Shows that for any element in the appended Fin (n + m) sufficing P, it is either in the
 first Fin n sufficing P or in the second Fin m sufficing P.-/
@@ -1250,4 +1251,3 @@ theorem Frankl_Wilson_intersecting (hF : ∀ A ∈ F, A ⊆ X) (hintersect : int
     exact card_le_card hLs) (by simp)
 
 end Ray_Chaudhuri_Wilson
-
