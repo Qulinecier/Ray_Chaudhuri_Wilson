@@ -565,11 +565,11 @@ namespace Frankl_Wilson
 
 
 variable (p : ℕ) [hp : Fact p.Prime] {m : ℕ} {F : Fin m → (Finset α)} (L : Fin m → Finset ℕ)
-  (hFNodup : Function.Injective F) (hF : ∀ i, F i ⊆ X)
-  (hL : ∀ i, (L i) ⊆ Finset.range p) {s : ℕ} (hsl : ∀ i, #(L i) ≤ s)
+  (hF : ∀ i, F i ⊆ X) (hL : ∀ i, (L i) ⊆ Finset.range p) {s : ℕ} (hsl : ∀ i, #(L i) ≤ s)
 
 instance : Field (ZMod p) := ZMod.instField p
 
+-- The condition described in theorem 3.1
 def modulo_intersecting (F : Fin m → (Finset α)):= ∀ i, (#(F i) : ZMod p) ∉ Nat.cast '' (L i)
   ∧ ∀ j, j < i → (#((F i) ∩ (F j)) : ZMod p) ∈ Nat.cast '' (L i)
 
@@ -701,6 +701,7 @@ lemma char_pol_spec_2 (hmi : modulo_intersecting p L F) :
   use a
   simp [char_vec_spec, ha]
 
+-- Theorem 3.1
 theorem Frankl_Wilson_intersecting_generalized (hF : ∀ i, F i ⊆ X) (hsl : ∀ i, #(L i) ≤ s)
     (hmi : modulo_intersecting p L F) :
     m ≤ ∑ i ∈ Finset.range (s + 1), Nat.choose #X i := by
