@@ -186,111 +186,9 @@ lemma binomVec_sum_equivFun (f : Polynomial ℤ) (hf: f.natDegree ≤ s): ∃ (a
           ⟨⟨f, hf'⟩, binomVec_span_eq_top_of_card_eq_finrank s Submodule.mem_top⟩))
       hf_coe'
 
-lemma temp1 (f : Polynomial ℤ) (hf: f.natDegree ≤ s):
-    ∃ (a : Fin (s + 1) → ℤ), ∀ (x : ℤ), Polynomial.eval x f =
-    ∑ (i : Fin (s + 1)), (a i) • (Polynomial.eval x (descPochhammer ℤ i.val)) := by
-  have h1 := binomVec_sum_equivFun s f hf
-  cases' h1 with a ha
-  use a
-  intro x
-  rw [← ha, Polynomial.eval_finset_sum]
-  simp only [zsmul_eq_mul, eval_mul, eval_intCast, Int.cast_eq]
-
-lemma temp2 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
-    ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), Polynomial.eval (x : ℤ) f =
-    ∑ (i : Fin (s + 1)), (a i) • (Polynomial.eval (x : ℤ) (descPochhammer ℤ i.val)) := by
-  have h1 := temp1 s f hf
-  cases' h1 with a ha
-  use a
-  intro x
-  specialize ha x
-  exact ha
-
-#check Rat.num_intCast
-#check Rat.instIntCast
-#check Rat.ofInt
--- Rat → Int
-
-
-
-
-lemma temp3 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
-    ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) f) =
-    ∑ (i : Fin (s + 1)), (a i) •
-    (Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) (descPochhammer ℤ i.val))) := by
-  have h1 := temp2 s f hf
-  cases' h1 with a ha
-  use a
-  intro x
-  specialize ha x
-  have h2 := congr_arg (Int.cast (R:= ℚ)) ha
-  simp only [Int.cast_sum] at h2
-  rw [h2]
-  congr! with i hi
-  simp only [Int.cast_mul, descPochhammer_eval_cast, Int.cast_natCast, zsmul_eq_mul]
-  rfl
-
 lemma nat_factorial_inv_one (a : ℕ ): a.factorial * (1/ a.factorial) = (1 : ℚ ) :=by
   exact mul_one_div_cancel (Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero a))
 
-
-lemma temp4 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
-    ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) f) =
-    ∑ (i : Fin (s + 1)), (a i) •
-    ((i.val).factorial* (1/ (i.val).factorial) *Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ)
-    (descPochhammer ℤ i.val))) := by
-  simp_rw [nat_factorial_inv_one]
-  have h1 := temp3 s f hf
-  cases' h1 with a ha
-  use a
-  intro x
-  specialize ha x
-  rw [ha]
-  simp only [descPochhammer_eval_cast, Int.cast_natCast, zsmul_eq_mul, one_mul]
-
-
-lemma temp5 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
-    ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) f) =
-    ∑ (i : Fin (s + 1)), (a i) •
-    ((i.val).factorial * (Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ)
-    (descPochhammer ℤ i.val)))/(Nat.cast (R:= ℚ) (i.val).factorial)) := by
-  have h1 := temp4 s f hf
-  cases' h1 with a ha
-  use a
-  intro x
-  specialize ha x
-  rw [ha]
-  simp only [one_div, descPochhammer_eval_cast, Int.cast_natCast, zsmul_eq_mul]
-  simp_rw [mul_assoc]
-  congr with i
-  simp only [mul_eq_mul_left_iff, Rat.intCast_eq_zero]
-  left
-  rw [← mul_div]
-  simp only [mul_eq_mul_left_iff, Rat.natCast_eq_zero]
-  left
-  rw [mul_comm]
-  exact rfl
-
-lemma temp6 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
-    ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) f) =
-    ∑ (i : Fin (s + 1)), (a i) *
-    ((i.val).factorial * (Nat.choose x i)) := by
-  have h1 := temp5 s f hf
-  cases' h1 with a ha
-  use a
-  intro x
-  specialize ha x
-  rw [ha]
-  simp only [descPochhammer_eval_cast, Int.cast_natCast, zsmul_eq_mul, Int.cast_sum, Int.cast_mul]
-  congr with i
-  simp only [mul_eq_mul_left_iff, Rat.intCast_eq_zero]
-  left
-  rw [← mul_div]
-  simp only [mul_eq_mul_left_iff, Rat.natCast_eq_zero]
-  left
-  rw [Nat.cast_choose_eq_descPochhammer_div]
-
--- f (∑ a, g (a)) = ∑ a, f g (a)
 
 lemma nat_cast_int_rat (a : ℕ): (Nat.cast (R:= ℚ) a) = Int.cast (R:=ℚ) (Nat.cast (R:= ℤ) a) :=by
   simp only [Int.cast_natCast]
@@ -305,30 +203,44 @@ lemma instCast_sum (f : Fin (s + 1) → ℤ) (S: Finset (Fin (s + 1))) : (Int.ca
     map_zero' := by simp only [Int.cast_zero, Rat.num_ofNat]
     map_add' x y:= by simp only [Rat.intCast_num]
   }
-
   have h1:= map_sum g f S
   unfold g at h1
   simp only [AddMonoidHom.coe_mk, ZeroHom.coe_mk] at h1
   exact h1
 
 
-lemma temp7 (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
+lemma exists_binomial_basis_expansion (f : Polynomial ℤ ) (hf: f.natDegree ≤ s):
     ∃ (a : Fin (s + 1) → ℤ ), ∀ (x : ℕ), (Polynomial.eval (x : ℤ) f) =
-    ∑ (i : Fin (s + 1)), (a i) *
-    ((i.val).factorial * (Nat.choose x i)) := by
-  have h1 := temp6 s f hf
-  cases' h1 with a ha
-  use a
+    ∑ (i : Fin (s + 1)), (a i) *(Nat.choose x i) := by
+  obtain ⟨a, ha⟩ : ∃ (a : Fin (s + 1) → ℤ ),
+    ∀ (x : ℕ), Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) f) =
+    ∑ (i : Fin (s + 1)), (a i) •
+    ((i.val).factorial* (1/ (i.val).factorial) *Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ)
+    (descPochhammer ℤ i.val))) :=by
+      simp_rw [nat_factorial_inv_one]
+      obtain ⟨a, ha⟩ := binomVec_sum_equivFun s f hf
+      use a
+      intro x
+      rw [← ha, Polynomial.eval_finset_sum]
+      simp only [zsmul_eq_mul, eval_mul, eval_intCast, Int.cast_eq,
+        Int.cast_sum, Int.cast_mul, descPochhammer_eval_cast, Int.cast_natCast, one_mul]
+  use (fun i => (a i) * (i.val).factorial)
   intro x
   specialize ha x
+  simp_rw [mul_assoc,
+    fun (i: Fin (s + 1)) =>mul_comm ((1/ (Nat.cast (R:= ℚ) (i.val).factorial)))
+    (Int.cast (R:= ℚ) (Polynomial.eval (x : ℤ) (descPochhammer ℤ i.val))),
+    mul_one_div, mul_div_assoc'] at ha
+  simp_rw [zsmul_eq_mul, descPochhammer_eval_cast, Int.cast_natCast, mul_div_assoc,
+    fun (i: Fin (s + 1)) => Eq.symm (Nat.cast_choose_eq_descPochhammer_div ℚ x i)] at ha
   have ha' := congr_arg (fun (a : ℚ) => a.num) ha
-  simp only [Rat.intCast_num, Int.cast_sum, Int.cast_mul, Int.cast_natCast] at ha'
-  simp_rw [nat_cast_int_rat] at ha'
-  simp_rw [(Rat.intCast_mul _ _).symm] at ha'
-  rw [ha']
-  rw [← Int.cast_sum]
-  rw [instCast_sum]
+  simp only [Rat.intCast_num, nat_cast_int_rat, (Rat.intCast_mul _ _).symm] at ha'
+  rw [ha', ← Int.cast_sum, instCast_sum]
+  congr with i
+  rw [mul_assoc]
   rfl
+
+
 
 
 end descPochhammer
