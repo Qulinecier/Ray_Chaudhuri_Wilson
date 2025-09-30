@@ -77,3 +77,33 @@ lemma card_set_subset_set_nat_choose (hrs : r ≤ s) (hA: A ⊆ X) (hB: B ⊆ X)
     #{S ∈ powersetCard s X | #(A ∩ S) = r ∧ (S: Finset α) ⊆ (B: Finset α)}
     = (Nat.choose (#(A∩B)) r) * (Nat.choose (#(B\A) ) (s-r)) :=by
   simp_rw [card_powerset_card_product s r A B hrs hA hB, card_product, card_powersetCard]
+
+lemma powersetCard_eq_filter_of_subset (X : Finset α) (hA : A ⊆ X):  powersetCard s A = {S ∈ powersetCard s X | S ⊆ A} := by
+  rw [@Subset.antisymm_iff]
+  constructor
+  · intro S hS
+    simp only [mem_powersetCard] at hS
+    simp only [mem_filter, mem_powersetCard]
+    refine' ⟨⟨fun ⦃a⦄ a_1 ↦ hA (hS.1 a_1), hS.2⟩, hS.1⟩
+  · intro S hS
+    simp only [mem_powersetCard]
+    simp only [mem_filter, mem_powersetCard] at hS
+    refine' ⟨hS.2, hS.1.2⟩
+
+/--
+Given a finite set `X` and a subset `A ⊆ X`, the number of elements of the
+attached `s`‑element subsets of `X`which are contained in `A` is `(#A).choose s`.
+-/
+lemma card_attach_powersetCard_filter_of_subset
+    (hA : A ⊆ X): #({S ∈ (powersetCard s X).attach | S.val ⊆ A}) = (#A).choose s :=by
+  rw [← card_powersetCard s A]
+  rw [powersetCard_eq_filter_of_subset s A X hA]
+  let hequiv:{S ∈ (powersetCard s X).attach | S.val ⊆ A}
+  ≃ {S ∈ powersetCard s X | S ⊆ A} := {
+    toFun := fun S =>⟨S.1.1, mem_filter.mpr ⟨by simp only [coe_mem], (mem_filter.mp S.2).2⟩⟩
+    invFun := fun S => ⟨⟨S.1, (mem_filter.mp S.2).1⟩,
+        mem_filter.mpr ⟨by simp only [mem_attach], (mem_filter.mp S.2).2⟩⟩
+    left_inv S:=by simp only [Subtype.coe_eta]
+    right_inv S:=by simp only [Subtype.coe_eta]
+  }
+  rw [Finset.card_eq_of_equiv hequiv]
