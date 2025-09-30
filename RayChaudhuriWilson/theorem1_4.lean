@@ -6,6 +6,7 @@ import Mathlib.LinearAlgebra.Span.Defs
 import Mathlib.LinearAlgebra.Dimension.Constructions
 import Mathlib.Data.Fintype.Defs
 import Mathlib.RingTheory.MvPolynomial.Homogeneous
+import Mathlib.Algebra.Field.ZMod
 
 open Finset
 
@@ -556,6 +557,165 @@ lemma dim_Ω_multilinear_span : Module.rank R (Ω_multilinear_span (R := R) (X :
   rw [Set.coe_toFinset] at h
   rw [← card_Ω_multilinear_set (R := R)]
   exact h
+
+
+
+namespace Frankl_Wilson
+
+
+
+variable (p : ℕ) [hp : Fact p.Prime] {m : ℕ} {F : Fin m → (Finset α)} (L : Fin m → Finset ℕ)
+  (hF : ∀ i, F i ⊆ X) (hL : ∀ i, (L i) ⊆ Finset.range p) {s : ℕ} (hsl : ∀ i, #(L i) ≤ s)
+
+instance : Field (ZMod p) := ZMod.instField p
+
+-- The condition described in theorem 3.1
+def modulo_intersecting (F : Fin m → (Finset α)):= ∀ i, (#(F i) : ZMod p) ∉ Nat.cast '' (L i)
+  ∧ ∀ j, j < i → (#((F i) ∩ (F j)) : ZMod p) ∈ Nat.cast '' (L i)
+
+-- The characteristic polynomial of a set A
+noncomputable def char_pol (i : Fin m) : MvPolynomial X R :=
+  ∏ l ∈ L i, (∑ m : X, ((char_vec (R := R) _ (hF i) m) • (MvPolynomial.X m))
+  - (MvPolynomial.C l : MvPolynomial X (R)))
+
+-- Show that the total degree of the characteristic polynomial is no greater than #(L i)
+lemma char_pol_degree (i : Fin m): (char_pol (R := R) L hF i).totalDegree ≤ #(L i) := by
+  unfold char_pol
+  have h : (∑ m, (char_vec (R := R) _ (hF i) m) •
+      MvPolynomial.X m : MvPolynomial X R).totalDegree ≤ 1 := by
+    apply MvPolynomial.totalDegree_finsetSum_le
+    intro x hx
+    calc
+    _ ≤ (MvPolynomial.X x).totalDegree := MvPolynomial.totalDegree_smul_le
+      (char_vec (R := R) _ (hF i) x) (MvPolynomial.X x : MvPolynomial X R)
+    _ = 1 := by apply MvPolynomial.totalDegree_X
+  have h (l : ℕ): (∑ m, (char_vec (R := R) _ (hF i) m) • MvPolynomial.X m
+      - (MvPolynomial.C l : MvPolynomial X R)).totalDegree ≤ 1 := calc
+    _ = (∑ m, (char_vec (R := R) _ (hF i) m) • MvPolynomial.X m
+      + (MvPolynomial.C (-l) : MvPolynomial X R)).totalDegree := by
+        rw [MvPolynomial.C_neg, Mathlib.Tactic.RingNF.add_neg]
+    _ ≤ max
+      (∑ m, (char_vec (R := R) _ (hF i) m) • MvPolynomial.X m : MvPolynomial X R).totalDegree
+      (MvPolynomial.C (-l) : MvPolynomial X R).totalDegree := by
+      apply MvPolynomial.totalDegree_add
+    _ ≤ _ := by
+      simp only [MvPolynomial.totalDegree_C, zero_le, sup_of_le_left]
+      exact h
+  calc
+  _ ≤ ∑ l ∈ L i,
+    (∑ m : X, (char_vec (R := R) _ (hF i) m) • MvPolynomial.X m
+    - (MvPolynomial.C l : MvPolynomial X R)).totalDegree := by
+    apply MvPolynomial.totalDegree_finset_prod
+  _ ≤ ∑ l ∈ L i, 1 := by exact sum_le_sum fun i_1 a ↦ h i_1
+  _ = _ := (card_eq_sum_ones (L i)).symm
+
+-- Rewrite the evaluation of characteristic polynomial as a function
+lemma char_pol_eval_eq (i : Fin m) (x : X → R): (char_pol (R := R) L hF i).eval x
+    = ∏ l ∈ L i, ((char_vec (R := R) _ (hF i)) ⬝ᵥ x - l) := by
+  unfold char_pol
+  rw [@MvPolynomial.eval_prod]
+  apply Finset.prod_congr rfl
+  intro l hl
+  simp [(· ⬝ᵥ ·)]
+
+-- Ω_char_pol translates characteristic polynomials to the function from Ω to ℝ via pol_to_eval
+noncomputable def Ω_char_pol (i : Fin m) (x : @Ω R _ α X): R := (char_pol (R := R) L hF i).eval x
+
+-- This lemma gives a more handy definition of Ω_char_pol
+lemma Ω_char_pol_eq (i : Fin m) : Ω_char_pol L hF i = pol_to_eval (char_pol (R := R) L hF i) := rfl
+
+-- Ω_char_pol_span is the span of all characteristic polynomials
+def Ω_char_pol_span : Submodule R (@Ω R _ α X → R) :=
+  Submodule.span R (Set.range (Ω_char_pol L hF))
+
+-- Show that the characteristic polynomial is also in the span of Ω_multilinear_set.
+lemma Ω_char_pol_spec (i : Fin m) (hsl : ∀ i, #(L i) ≤ s):
+    Ω_char_pol L hF i ∈ Ω_multilinear_span (R := R) (s + 1) := by
+  rw [Ω_char_pol_eq]
+  apply Ω_multilinear_span_deg_le_mem
+  exact le_trans (char_pol_degree L hF i) (hsl i)
+
+/- Show that the span of the characteristic polynomial is included
+in the span of Ω_multilinear_set.-/
+lemma span_to_R_le_span_ml (hsl : ∀ i, #(L i) ≤ s) :
+    (Ω_char_pol_span L hF) ≤ Ω_multilinear_span (R := R) (s + 1) := by
+  unfold Ω_char_pol_span
+  apply Submodule.span_le.mpr
+  intro x hx
+  rw [@Set.mem_range] at hx
+  obtain ⟨i, rfl⟩ := hx
+  exact Ω_char_pol_spec L hF i hsl
+
+-- Show that the rank of the characteristic polynomial is ≤ the cardinality of Ω_multilinear_set.
+lemma dim_span_to_R_le (hsl : ∀ i, #(L i) ≤ s) : Module.rank R (Ω_char_pol_span (R := R) L hF)
+    ≤ ∑ m ∈ Finset.range (s + 1), Nat.choose #X m:= by
+  exact Preorder.le_trans (Module.rank R (Ω_char_pol_span L hF))
+    (Module.rank R (Ω_multilinear_span (X := X) (s + 1)))
+    (↑(∑ m ∈ range (s + 1), (#X).choose m))
+    (Submodule.rank_mono (span_to_R_le_span_ml L hF hsl)) (dim_Ω_multilinear_span (s + 1))
+
+-- Show that the characteristic polynomials are in fact linear independent
+lemma Ω_char_pol_lin_indep
+    (hspec1 : ∀ i, (char_pol (R := R) L hF i).eval (char_vec _ (hF i)) ≠ 0)
+    (hspec2 : ∀ i j, j < i → (char_pol (R := R) L hF i).eval (char_vec _ (hF j)) = 0):
+    LinearIndependent R (Ω_char_pol (R := R) L hF):= by
+  rw [← linearIndepOn_univ]
+  apply sorted_linearIndepOn (R := R) (Sn := fun (x : Fin m) => x)
+  intro f _
+  use Ω_char_vec _ (hF f)
+  constructor
+  · exact hspec1 f
+  · intro g _ hfleg hfneg
+    rw [Nat.cast_le, Fin.val_fin_le] at hfleg
+    simp only [Function.mem_support, ne_eq, not_not]
+    apply hspec2
+    exact lt_of_le_of_ne hfleg hfneg
+
+-- Show that the characteristic polynomial is non-zero for the characteristic vector of A.
+lemma char_pol_spec_1 (hmi : modulo_intersecting p L F):
+    ∀ i, (char_pol (R := ZMod p) L hF i).eval (char_vec _ (hF i)) ≠ 0 := by
+  intro i
+  rw [char_pol_eval_eq]
+  refine prod_ne_zero_iff.mpr ?_
+  intro a ha
+  unfold modulo_intersecting at hmi
+  rw [char_vec_spec, inter_self, @sub_ne_zero]
+  by_contra hcon
+  have hneg : (#(F i) : ZMod p) ∈ Nat.cast '' (L i) := by
+    simp only [Set.mem_image, mem_coe]
+    use a
+    exact ⟨ha, hcon.symm⟩
+  exact (hmi i).left hneg
+
+/- Show that the characteristic polynomial is zero for
+the characteristic vector of B with lower cardinality.-/
+lemma char_pol_spec_2 (hmi : modulo_intersecting p L F) :
+    ∀ i j, j < i → (char_pol (R := ZMod p) L hF i).eval (char_vec _ (hF j)) = 0 := by
+  intro i j hji
+  rw [char_pol_eval_eq]
+  unfold modulo_intersecting at hmi
+  refine prod_eq_zero_iff.mpr ?_
+  have hans := ((hmi i).right j) hji
+  simp only [Set.mem_image, mem_coe] at hans
+  obtain ⟨a, ha⟩ := hans
+  use a
+  simp [char_vec_spec, ha]
+
+-- Theorem 3.1
+theorem Frankl_Wilson_intersecting_generalized (hF : ∀ i, F i ⊆ X) (hsl : ∀ i, #(L i) ≤ s)
+    (hmi : modulo_intersecting p L F) :
+    m ≤ ∑ i ∈ Finset.range (s + 1), Nat.choose #X i := by
+  have h := linearIndependent_span (Ω_char_pol_lin_indep L hF (char_pol_spec_1 p L hF hmi)
+    (char_pol_spec_2 p L hF hmi))
+  apply LinearIndependent.cardinal_le_rank at h
+  rw [Cardinal.mk_fintype, Fintype.card_fin] at h
+  exact Nat.cast_le.mp (le_trans h (dim_span_to_R_le L hF hsl))
+
+
+
+end Frankl_Wilson
+
+
 
 -- this is the lemma 2.1 in the paper, I am not sure how to name it.
 theorem Lemma_2_1 [DecidableEq R] (f : @Ω R _ α X → R) (hf : ∀ I , (hI : I ⊆ X) → #I < n
