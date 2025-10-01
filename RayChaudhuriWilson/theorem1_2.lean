@@ -22,18 +22,73 @@ import Mathlib.Data.ZMod.Defs
 import Mathlib.Data.ZMod.Basic
 import Mathlib.Algebra.Field.ZMod
 import Batteries.Data.Rat.Basic
+import Mathlib.LinearAlgebra.Matrix.IsDiag
 import RayChaudhuriWilson.intersection_card
 import RayChaudhuriWilson.Matrix_rank
 import RayChaudhuriWilson.Finset_card
 import RayChaudhuriWilson.fin_strong_induction
-
-
+import RayChaudhuriWilson.determinant
+import RayChaudhuriWilson.BinomVecSpace
 
 open Finset
 variable {α : Type} [DecidableEq α]
+variable (S : Finset α) (n s k: ℕ) (hs : s ≠ 0) [hS: Fact (#S = n)] (p : ℕ) [hp : Fact p.Prime]
+variable (F: Finset (powersetCard k S)) [hF: Fact (Nonempty F)]
+variable (μ : Fin (s + 1) →  ZMod p) (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
+
+open Polynomial
+
+noncomputable abbrev characteristicPoly₁ : Polynomial ℤ :=
+    ∏ (i : Finset.Icc 1 s), (X- (Nat.cast (R := ℤ[X]) (μ (Fin.ofNat (s + 1) i)).val))
+
+lemma natDegree_characteristicPoly₁_le: (characteristicPoly₁ s p μ).natDegree ≤ s := by
+  unfold characteristicPoly₁
+  by_cases h: ∃ i ∈ (Icc 1 s).attach, X - (Nat.cast (R := ℤ[X]) (μ (Fin.ofNat (s + 1) i)).val) = 0
+  · have h2 : (characteristicPoly₁ s p μ).natDegree = 0 := by
+      unfold characteristicPoly₁
+      simp only [univ_eq_attach]
+      rw [prod_eq_zero_iff.mpr h]
+      rfl
+    rw [h2]
+    exact Nat.zero_le s
+  · simp only [univ_eq_attach]
+    rw [Polynomial.natDegree_prod]
+    · have h1: ∀ i ∈ (Icc 1 s).attach,
+          (X - (Nat.cast (R := ℤ[X]) (μ (Fin.ofNat (s + 1) i)).val)).natDegree = 1:=by
+        intro i hi
+        rw [← pow_one X]
+        have h2 : (Nat.cast (R := ℤ[X]) (μ (Fin.ofNat (s + 1) i)).val) =
+          C (R := ℤ) (μ (Fin.ofNat (s + 1) i)).val :=by
+          simp only [Fin.ofNat_eq_cast, ZMod.natCast_val, eq_intCast, ZMod.intCast_cast]
+        rw [h2, Polynomial.natDegree_X_pow_sub_C (n:= 1)]
+      have h2 : ∑ i ∈ (Icc 1 s).attach, (X - (Nat.cast (R := ℤ[X])
+        (μ (Fin.ofNat (s + 1) i)).val)).natDegree =
+        ∑ i ∈ (Icc 1 s).attach, 1 :=by
+        congr! with i hi
+        specialize h1 i hi
+        exact h1
+      rw [h2]
+      simp only [sum_const, card_attach, Nat.card_Icc, add_tsub_cancel_right, smul_eq_mul, mul_one,
+        le_refl]
+    · intro i
+      by_contra h'
+      apply h
+      use i
+      simp only [mem_attach, Fin.ofNat_eq_cast, ZMod.natCast_val] at h' ⊢
+      simp only [ne_eq, forall_const, Decidable.not_not] at h'
+      simp only [true_and]
+      exact h'
 
 
-variable (X : Finset α) (n s k: ℕ) [hX: Fact (#X = n)] (p : ℕ) [hp : Fact p.Prime]
+
+
+#check exists_binomial_basis_expansion s (characteristicPoly₁ s p μ) (natDegree_characteristicPoly₁_le s p μ)
+
+section Frankl_Wilson_mod
+open Finset
+variable {α : Type} [DecidableEq α]
+
+variable (X : Finset α) (n s k: ℕ) (hs : s ≠ 0) [hX: Fact (#X = n)] (p : ℕ) [hp : Fact p.Prime]
 variable (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
 variable (μ : Fin (s + 1) →  ZMod p) (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
 
@@ -47,7 +102,7 @@ def something (x : ℕ ) (i : Fin (s + 1)) (a : Fin (s + 1) → ZMod p): ZMod p 
 
 def uniform_mod := ∀ (A : F), (#A.val.val : ZMod p) = (μ 0)
 
-def intersecting_mod:= ∀ (A B: F), ∃ (i: Fin (s + 1)), (i ≥ 1) ∧
+def intersecting_mod:= ∀ (A B: F), (A ≠ B) → ∃ (i: Fin (s + 1)), (i ≥ 1) ∧
   (#(A.val.val ∩ B.val.val): ZMod p) = μ i
 
 def μ_set: Finset (ZMod p) := { (n: ZMod p)| ∃ (A B : F), (#(A.val.val ∩ B.val.val):ZMod p) = n}
@@ -119,16 +174,6 @@ lemma N_transpose_N_eq_coe_N (i: Fin (s + 1)) : (incidence_matrix X i s)
       exact hBA (subset_trans h.1 h.2)
     simp_rw [hBSA, univ_eq_attach, reduceIte, sum_const_zero]
 
-lemma exists_coe_M_poly (f: Polynomial (ZMod p)) (hf: Polynomial.natDegree f ≤ s):
-  ∃ (a : Fin (s + 1) → (ZMod p)), f
-   = ∑ (i : Fin (s + 1)), (a i) • ((1/(Nat.factorial i): ZMod p) •
-  (descPochhammer (ZMod p) i.val)) := by
-  sorry
-
-lemma exists_coe_M : ∃ (a : Fin (s + 1) → ZMod p), ∀ (x : ℕ), (∏ (i : Finset.Icc 1 s),
-  (x - μ (Fin.ofNat (s + 1) i.val))) = ∑ (i : Fin (s + 1)), (a i) * (Nat.choose x i) := by
-  sorry
-
 def gram_M (a : Fin (s + 1) → ZMod p) := ∑ (i : Fin (s + 1)), ((a i).val: ℚ) •
   (Gram_matrix X i k)
 
@@ -157,6 +202,129 @@ lemma M_minor_entry_eq_sum_binom (a : Fin (s + 1) → ZMod p) (u v : F): ((M_min
     (fun ⦃a⦄ a ↦ a) ((mem_powersetCard.1 (u.1).2).1)) a_1))]
   simp_rw [inter_comm]
 
+abbrev weighted_binom_matrix (a : Fin (s + 1) → ZMod p) : Matrix F F ℤ := fun u => fun v =>
+    ∑ (i : Fin (s + 1)), (a i).val * (Nat.choose (#(u.val.val ∩ v.val.val)) i)
+
+omit hF in
+lemma map_weighted_binom_matrix_eq_minor (a : Fin (s + 1) → ZMod p) :
+    (weighted_binom_matrix X s k p F a).map (Int.cast (R := ℚ)) = M_minor X s k p F a :=by
+  ext u v
+  unfold weighted_binom_matrix
+  rw [M_minor_entry_eq_sum_binom]
+  simp only [ZMod.natCast_val, Matrix.map_apply, Int.cast_sum, Int.cast_mul, ZMod.intCast_cast,
+    Int.cast_natCast, Nat.cast_sum, Nat.cast_mul]
+
+abbrev W_minor (a : Fin (s + 1) → ZMod p) := (weighted_binom_matrix X s k p F a).map
+  (Int.cast (R := ZMod p))
+
+omit hF in
+lemma characteristicPoly₁_eval_intersection_eq_zero
+  (hs : s ≠ 0) (u v : F) (huv : u ≠ v) (hintersect: intersecting_mod X s k p F μ):
+    Int.cast (R:= ZMod p)
+    (eval (Nat.cast (R:= ℤ) #(u.val.val ∩ v.val.val))
+    (characteristicPoly₁ s p μ)) = 0 :=by
+  unfold characteristicPoly₁; unfold intersecting_mod at hintersect
+  specialize hintersect u v huv
+  have h : ∃ (i : Icc 1 s ), Int.cast (R:= ZMod p) (Polynomial.eval (Nat.cast (R:= ℤ) #(u.val.val ∩ v.val.val))
+    ((Polynomial.X: Polynomial ℤ)- (Nat.cast (R := ℤ[X]) (μ (Fin.ofNat (s + 1) i)).val))) = 0 :=by
+    cases' hintersect with i hi
+    cases' hi with hl hr
+    have hi' : i.val ∈ Icc 1 s  :=by
+      simp only [mem_Icc]
+      constructor
+      · refine Nat.one_le_iff_ne_zero.mpr ?_
+        have hi' : i ≠ 0 := by
+          intro h'
+          rw [h'] at hl
+          exact Fin.not_lt.mpr hl (Fin.pos_iff_ne_zero.mpr (id (Ne.symm (by norm_num; exact hs))))
+        exact Fin.val_ne_zero_iff.mpr hi'
+      · exact Fin.is_le i
+    use ⟨i.val, hi'⟩
+    simp only [Fin.ofNat_eq_cast, Fin.cast_val_eq_self, ZMod.natCast_val, eval_sub, eval_X]
+    have h : eval (Nat.cast (R:= ℤ) #(u.val.val ∩ v.val.val)) (ZMod.cast (R := ℤ[X]) (μ i))
+        =ZMod.cast (R := ℤ) (μ i) := by
+      have h' : ZMod.cast (R := ℤ[X]) (μ i) = Polynomial.C (R:= ℤ) (ZMod.cast (R := ℤ) (μ i)) :=by
+        simp only [eq_intCast, ZMod.intCast_cast]
+      rw [h']
+      exact eval_C
+    simp only [Int.cast_sub, Int.cast_natCast]
+    rw [h, hr]
+    simp only [ZMod.intCast_cast, ZMod.cast_id', id_eq, sub_self]
+  simp_rw [Polynomial.eval_prod, Int.cast_prod]
+  rw [Finset.prod_eq_zero_iff]
+  cases' h with a ha
+  use a
+  simp only [univ_eq_attach, mem_attach, true_and]
+  exact ha
+
+omit hF in
+lemma W_minor_is_diag (hs : s ≠ 0) (μ : Fin (s + 1) →  ZMod p)
+  (hintersect: intersecting_mod X s k p F μ) (a : Fin (s + 1) → ℤ )
+    (ha : ∀ (x : ℕ), (Polynomial.eval (x : ℤ) (characteristicPoly₁ s p μ)) =
+    ∑ (i : Fin (s + 1)), (a i) *(Nat.choose x i)):
+  (W_minor X s k p F (fun i => (Int.cast (R:= ZMod p) (a i)))).IsDiag := by
+  rw [Matrix.isDiag_iff_diagonal_diag]
+  ext u v
+  rw [Matrix.diagonal_apply, Matrix.diag_apply]
+  unfold W_minor
+  unfold weighted_binom_matrix
+  simp only [ZMod.natCast_val, Matrix.map_apply, inter_self, Int.cast_sum, Int.cast_mul,
+    ZMod.intCast_cast, ZMod.cast_id', id_eq, Int.cast_natCast]
+  by_cases huv : u = v
+  · rw [if_pos huv, huv]
+    simp only [inter_self]
+  · rw [if_neg huv]
+    specialize ha #(u.val.val ∩ v.val.val)
+    have ha' := congr_arg (Int.cast (R:= ZMod p)) ha
+    simp only [Int.cast_sum, Int.cast_mul, Int.cast_natCast] at ha'
+    rw [← ha', characteristicPoly₁_eval_intersection_eq_zero X s k p F μ hs u v huv hintersect]
+
+omit hF in
+lemma nonzero_det_W_minor (hs : s ≠ 0) (μ : Fin (s + 1) →  ZMod p)
+    (huniform_mod: uniform_mod X s k p F μ)
+    (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
+    (hintersect: intersecting_mod X s k p F μ):
+    ∃ (a : Fin (s + 1) → ZMod p), (W_minor X s k p F a).det ≠ 0 :=by
+  obtain ⟨a, ha⟩ := exists_binomial_basis_expansion s (characteristicPoly₁ s p μ)
+    (natDegree_characteristicPoly₁_le s p μ)
+  use (fun i => (Int.cast (R:= ZMod p) (a i)))
+  rw [← ((Matrix.isDiag_iff_diagonal_diag (W_minor X s k p F (fun i =>
+    (Int.cast (R:= ZMod p) (a i))))).mp
+    (W_minor_is_diag X s k p F hs μ hintersect a ha))]
+  simp only [Matrix.det_diagonal, Matrix.diag_apply, W_minor,
+    Matrix.map_apply, Int.cast_sum, ZMod.natCast_val, inter_self,
+    Int.cast_mul, ZMod.intCast_cast, dvd_refl, ZMod.cast_intCast, Int.cast_natCast]
+  rw [Finset.prod_ne_zero_iff]
+  intro x hx
+  specialize ha (#x.val.val)
+  have ha' := congr_arg (Int.cast (R:= ZMod p)) ha
+  simp only [Int.cast_sum, Int.cast_mul, Int.cast_natCast] at ha'
+  rw [← ha']
+  unfold characteristicPoly₁
+  rw [Polynomial.eval_prod]
+  simp only [Int.cast_prod]
+  rw [Finset.prod_ne_zero_iff]
+  intro i hi
+  rw [Polynomial.eval_sub]
+  simp only [eval_X]
+  have h1 : Polynomial.eval (Nat.cast (R := ℤ) #x.val.val)
+    (Nat.cast (R:= ℤ[X]) (μ (Fin.ofNat (s + 1) i.val)).val) = Polynomial.eval
+    (Nat.cast (R := ℤ) #x.val.val) (Polynomial.C (R:= ℤ) ((μ (Fin.ofNat (s + 1) i.val)).val)) := by
+    simp only [Fin.ofNat_eq_cast, ZMod.natCast_val, eq_intCast, ZMod.intCast_cast]
+  rw [h1]
+  simp only [eval_C]
+  simp only [Fin.ofNat_eq_cast, ZMod.natCast_val, Int.cast_sub, Int.cast_natCast, ZMod.intCast_cast,
+    ZMod.cast_id', id_eq]
+  rw [huniform_mod x]
+  have h0i : (0: Fin (s + 1)) ≠ i.val := Nat.ne_of_lt (List.left_le_of_mem_range' i.2)
+  have h0i':(0: Fin (s + 1)) ≠ (@Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1)) i.val):=by
+    by_contra h'
+    rw [h'] at h0i
+    simp only [Fin.val_natCast, ne_eq, Nat.mod_succ_eq_iff_lt, Nat.succ_eq_add_one, not_lt] at h0i
+    have h3 : i.val < s + 1 := by exact Order.lt_add_one_iff.mpr ((mem_Icc.mp i.2).2)
+    omega
+  exact sub_ne_zero_of_ne (hμ 0
+    (@Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1)) i.val) h0i')
 
 instance : Nontrivial (ZMod p):= ZMod.nontrivial_iff.mpr (Nat.Prime.ne_one hp.1)
 
@@ -310,17 +478,32 @@ lemma det_M_neq_0_rank_M_eq_card_F (a : Fin (s + 1) → ZMod p):
   fun h => by simp_rw [Matrix.rank_of_isUnit (M_minor X s k p F a)
     ((Matrix.isUnit_iff_isUnit_det (M_minor X s k p F a)).mpr (Ne.isUnit h)), Fintype.card_coe]
 
-lemma det_M_neq_0 (a : Fin (s + 1) → ZMod p):
-    (Matrix.det (M_minor X s k p F a)) ≠ 0 := by sorry
+omit hF in
+lemma det_M_neq_0 (μ : Fin (s + 1) →  ZMod p) (huniform_mod: uniform_mod X s k p F μ)
+  (hs : s ≠ 0) (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
+  (hintersect: intersecting_mod X s k p F μ): ∃ (a : Fin (s + 1) → ZMod p),
+    (Matrix.det (M_minor X s k p F a)) ≠ 0 := by
+  obtain ⟨a, ha⟩ := nonzero_det_W_minor X s k p F hs μ huniform_mod hμ hintersect
+  have h1 := Matrix.det_ne_zero_of_rat_cast (weighted_binom_matrix X s k p F a)
+  rw [map_weighted_binom_matrix_eq_minor] at h1
+  use a
+  apply h1
+  apply Matrix.det_ne_zero_of_mod_cast p
+  unfold W_minor at ha
+  exact ha
+
 
 theorem Frankl_Wilson_mod
     (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
     (μ : Fin (s + 1) →  ZMod p)
+    (hs : s ≠ 0)
     (h_card : #(μ_set X k p F) = s + 1) (hμ': μ_set' s p μ = (μ_set X k p F))
     (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
     (huniform_mod: uniform_mod X s k p F μ)
     (hintersect: intersecting_mod X s k p F μ): #F ≤ Nat.choose n s  := by
-  obtain ⟨a, _⟩ := exists_coe_M s p μ
-  rw [← det_M_neq_0_rank_M_eq_card_F X s k p F a (det_M_neq_0 X s k p F a)]
+  obtain ⟨a, ha⟩ := det_M_neq_0 X s k p F μ huniform_mod hs hμ hintersect
+  rw [← det_M_neq_0_rank_M_eq_card_F X s k p F a ha]
   exact le_trans (rank_minor_le_M X s k p F a) (le_trans
     (rank_M_leq_rank_V X s k p F a μ h_card hμ') (dim_V_leq_binom_n_s X n s k))
+
+end Frankl_Wilson_mod

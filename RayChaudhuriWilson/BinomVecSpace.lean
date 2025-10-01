@@ -193,8 +193,6 @@ lemma nat_factorial_inv_one (a : ℕ ): a.factorial * (1/ a.factorial) = (1 : �
 lemma nat_cast_int_rat (a : ℕ): (Nat.cast (R:= ℚ) a) = Int.cast (R:=ℚ) (Nat.cast (R:= ℤ) a) :=by
   simp only [Int.cast_natCast]
 
-
-
 @[simp]
 lemma instCast_sum (f : Fin (s + 1) → ℤ) (S: Finset (Fin (s + 1))) : (Int.cast (R:= ℚ) (∑ x ∈ S, f x)).num
   = ∑ x ∈ S, (Int.cast (R:= ℚ) (f x)).num := by
