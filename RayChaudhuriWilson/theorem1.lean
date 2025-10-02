@@ -16,6 +16,20 @@ import Mathlib.Data.Nat.Factorial.Basic
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.Polynomial.Eval.SMul
 import Mathlib.Data.Nat.Cast.Field
+import Mathlib.LinearAlgebra.Matrix.Rank
+import Mathlib.LinearAlgebra.InvariantBasisNumber
+import Mathlib.Data.ZMod.Defs
+import Mathlib.Data.ZMod.Basic
+import Mathlib.Algebra.Field.ZMod
+import Batteries.Data.Rat.Basic
+import Mathlib.LinearAlgebra.Matrix.IsDiag
+import Mathlib.LinearAlgebra.Finsupp.Span
+import RayChaudhuriWilson.intersection_card
+import RayChaudhuriWilson.Matrix_rank
+import RayChaudhuriWilson.Finset_card
+import RayChaudhuriWilson.fin_strong_induction
+import RayChaudhuriWilson.determinant
+import RayChaudhuriWilson.BinomVecSpace
 
 
 
@@ -48,119 +62,7 @@ def subset_intersection_indicator (A: Finset α) (μ : ℕ): F → ℝ :=
 variable (r: ℕ)
 variable (A B : F)
 
-/--Projection map from S to (A∩S, (B\A)∩ S)-/
-def intersect_i: (a : Finset α) → a ∈ {S ∈ powersetCard s X | #(↑↑A ∩ S) = r ∧ S ⊆ ↑↑B}
-    → Finset α × Finset α :=
-  fun S ↦ fun _ ↦ ((A: Finset α) ∩ S, ((B: Finset α) \ (A: Finset α)) ∩ S)
 
-/--Reverse map from (S.1, S.2) to S.1 ∪ S.2-/
-def intersect_j: (a : Finset α × Finset α) →
-    a ∈ powersetCard r (↑↑A ∩ ↑↑B) ×ˢ powersetCard (s - r) (↑↑B \ ↑↑A) → Finset α :=
-  fun S ↦ fun _ ↦ S.1 ∪ S.2
-
-/--
-The cardinality of {S∈𝓟ₛ(X)| |A∩S|=r and S⊆B} is equal to the number of ways choosing r elements
-in A∩B and s-r elements in B\A.
-#{S∈𝓟ₛ(X)| |A∩S|=r and S⊆B} = #𝓟ᵣ(A∩B) × #𝓟ₛ₋ᵣ(B\A)
--/
-lemma card_powerset_card_product (hrs : r ≤ s) : #{S ∈ powersetCard s X | #(A.val.val ∩ S) = r
-    ∧ (S: Finset α) ⊆ (B: Finset α)} = #((powersetCard r ((A: Finset α) ∩ (B: Finset α))) ×ˢ
-    (powersetCard (s-r) ((B: Finset α) \ (A: Finset α)))) :=by
-  apply Finset.card_bij' (intersect_i F s r A B) (intersect_j F s r A B)
-  · intro S hS
-    unfold intersect_i
-    unfold intersect_j
-    simp only
-    simp only [mem_filter, mem_powersetCard] at hS
-    cases' hS with hS1 hS3
-    cases' hS1 with hS1 hS2
-    cases' hS3 with hS3 hS4
-    rw [← union_inter_distrib_right]
-    simp only [union_sdiff_self_eq_union, inter_eq_right]
-    exact subset_trans hS4 subset_union_right
-  · intro S hS
-    unfold intersect_i
-    unfold intersect_j
-    simp only [mem_product, mem_powersetCard] at hS
-    cases' hS with hS1 hS3
-    cases' hS1 with hS1 hS2
-    cases' hS3 with hS3 hS4
-    rw [inter_union_distrib_left]
-    have hdisj : Disjoint (A: Finset α) S.2 := by
-      apply disjoint_of_subset_right hS3
-      exact disjoint_sdiff
-    rw [disjoint_iff_inter_eq_empty.mp hdisj, union_empty, inter_union_distrib_left,
-      inter_comm, inter_eq_left.mpr (subset_inter_iff.mp hS1).left]
-    have hdisj2 : Disjoint ((B: Finset α) \ (A:Finset α)) (A: Finset α) := by exact
-      sdiff_disjoint
-    have h1: ((B: Finset α) \ (A:Finset α)) ∩ S.1 ⊆
-        ((B: Finset α) \ (A:Finset α)) ∩ (A: Finset α) := by
-      exact inter_subset_inter_left (subset_inter_iff.mp hS1).left
-    rw [disjoint_iff_inter_eq_empty.mp hdisj2] at h1
-    rw [subset_empty.mp h1, empty_union, inter_eq_right.mpr hS3]
-  · intro S hS
-    unfold intersect_i
-    simp only [mem_product, mem_powersetCard, inter_subset_left, true_and]
-    simp only [mem_filter, mem_powersetCard] at hS
-    cases' hS with h1 h2
-    cases' h2 with h2 h3
-    cases' h1 with h1 h4
-    refine' ⟨⟨inter_subset_inter_left h3, h2⟩, ?_⟩
-    have h5: ((B: Finset α) \ (A: Finset α)) ∩ S = ((B: Finset α) ∩ S) \ ((A: Finset α) ∩ S) := by
-      ext x
-      simp only [mem_inter, mem_sdiff, not_and]
-      constructor
-      · intro hx
-        cases' hx with hx1 hx2
-        cases' hx1 with hx1 hx3
-        refine' ⟨⟨hx1, hx2⟩ , ?_⟩
-        intro hx4
-        exfalso
-        apply hx3
-        exact hx4
-      · intro hx
-        cases' hx with hx1 hx2
-        cases' hx1 with hx1 hx3
-        refine' ⟨⟨hx1, ?_⟩ , hx3⟩
-        by_contra hA
-        apply hx2
-        · exact hA
-        · exact hx3
-    rw [h5, inter_eq_right.mpr h3, card_sdiff, h4, h2]
-    exact inter_subset_right
-  · intro S hS
-    unfold intersect_j
-    simp only [mem_filter, mem_powersetCard]
-    simp only [mem_product, mem_powersetCard] at hS
-    cases' hS with h1 h3
-    cases' h1 with h1 h2
-    cases' h3 with h3 h4
-    refine' ⟨⟨?_, ?_⟩ , ⟨?_,
-      union_subset (subset_inter_iff.mp h1).right (Subset.trans h3 sdiff_subset)⟩⟩
-    · intro x hx
-      by_cases hxS: x ∈ S.1
-      · exact (mem_powerset.mp A.val.property) (mem_of_mem_filter x (h1 hxS))
-      · have h5: x ∈ S.2 :=by
-          rw [mem_union] at hx
-          cases' hx with hx1 hx2
-          · exfalso
-            apply hxS
-            exact hx1
-          · exact hx2
-        exact (mem_powerset.mp B.val.property) (mem_sdiff.mp (h3 h5)).left
-    · have h5: #(S.1 ∪ S.2) = #S.1 + #S.2 := by
-        rw [card_union_eq_card_add_card]
-        apply disjoint_of_subset_left h1
-        apply disjoint_of_subset_right h3
-        apply disjoint_of_subset_left (inter_subset_left)
-        exact disjoint_sdiff
-      rw [h5, h2, h4, Nat.add_sub_cancel' hrs]
-    · have hdisj: Disjoint (A: Finset α) S.2 := by
-        apply disjoint_of_subset_right h3
-        exact disjoint_sdiff
-      rw [inter_union_distrib_left, inter_comm, inter_eq_left.mpr (subset_inter_iff.mp h1).left,
-        disjoint_iff_inter_eq_empty.mp hdisj, union_empty]
-      exact h2
 
 /--
 ∑(S_bar: S∈𝓟ₛ(X), |S∩A|=r) = ∑μ∈L, binom(μ, r) * binom(k-μ, s-r)* H,
@@ -175,7 +77,7 @@ lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L)
   funext B
   simp only [Finset.sum_apply]
   unfold subset_indicator
-  simp only [Pi.natCast_def, Pi.mul_apply, mul_ite, mul_one, mul_zero]
+  simp only [Pi.natCast_def, Pi.mul_apply]
   unfold intersecting at hintersect
   have hAB := hintersect A B
 
@@ -207,7 +109,7 @@ lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L)
       · simp [hAS]
       · simp [hAS]
     · rw [if_neg hP, inter_comm, if_neg hP]
-      simp only [univ_eq_attach, ite_self, sum_const_zero]
+      simp only [ite_self, sum_const_zero]
 
   rw [h1]
 
@@ -222,7 +124,8 @@ lemma vector_sum_eq_intersection_sum (hintersect : intersecting F L)
     unfold uniform at huniform
     have hB := huniform B
     have hA := huniform A
-    rw [card_powerset_card_product F s r A B hrs]
+    rw [card_powerset_card_product s r A.1.1 B.1.1
+      hrs (mem_powerset.mp A.1.2) (mem_powerset.mp B.1.2)]
     simp only [card_product, card_powersetCard, Nat.cast_mul]
     rw [inter_comm, hinter]
     have hdiff: (B: Finset α) \ (A: Finset α) = (B: Finset α) \ ((B: Finset α) ∩ (A: Finset α)) :=by
@@ -261,8 +164,6 @@ lemma subset_indicator_rank (hX : #X = n): #(subset_indicator_set F s)
   rw [h2.symm]
   exact h1
 
-#check rank_span_finset_le
-
 lemma subset_vector_span_dim_le (h: Submodule.span ℝ
   (toSet (subset_indicator_set F s)) = (⊤: Submodule ℝ (F → ℝ)))
   (hX : #X = n) : #F ≤ Nat.choose n s := by
@@ -294,7 +195,7 @@ lemma span_H (huniform: uniform F k): (⊤: Submodule ℝ (F → ℝ)) =
     unfold subset_H
     simp only [coe_image]
     have hx_coe: x = ∑ (S:F), (x S) • intersection_indicator F S k := by
-      nth_rw 1 [(Basis.sum_repr (Pi.basisFun ℝ F) x).symm]
+      nth_rw 1 [(Module.Basis.sum_repr (Pi.basisFun ℝ F) x).symm]
       congr! with A hA
       simp only [Pi.basisFun_apply]
       unfold intersection_indicator
@@ -358,7 +259,7 @@ noncomputable def coe_matrix: Matrix (Fin (s + 1)) (Fin (s + 1)) ℝ := fun r =>
 
 open Nat
 
-def root_set := {(enumL hL_card).symm l | (l: Fin s)}
+def root_set := {(enumL hL_card).symm l | (l: Fin (s + 1))}
 
 noncomputable def real_choose_poly (r : ℕ ) : Polynomial ℝ := (1/ (r !): ℝ ) • (descPochhammer ℝ r)
 
@@ -495,66 +396,16 @@ lemma sum_coe_poly'_eval_zero (hv: (∑ (i: Fin (s + 1)), v i • fun l ↦
   : ∀ (l : Fin (s+1)), Polynomial.eval (((enumL hL_card).symm l):ℝ) (sum_coe_poly' k s v) = 0 :=by
   intro l
   have h1:= congrFun hv l
-  simp only [sum_apply, Pi.smul_apply, Pi.zero_apply] at h1
-  unfold sum_coe_poly'
-  simp only [one_div, map_natCast, Algebra.smul_mul_assoc]
-  have h2 : ∑ (x: Fin (s+1)), v x • ↑((((enumL hL_card).symm l):ℕ ).descFactorial ↑x / (↑x)! *
-    ((k - ↑((enumL hL_card).symm l)).descFactorial (s - ↑x) / (s - ↑x)!))
-    = ∑ (x: Fin (s+1)), (v x) • ((Nat.choose ((enumL hL_card).symm l: ℕ) (x : ℕ)) *
-    (Nat.choose (k - ((enumL hL_card).symm l: ℕ )) (s - x : ℕ ):ℝ ): ℝ)
-    :=by
-    congr! 1 with x hx
-    rw [Nat.choose_eq_descFactorial_div_factorial]
-    rw [Nat.choose_eq_descFactorial_div_factorial]
-    norm_cast
-  rw [← h2] at h1
-  rw [Polynomial.eval_finset_sum]
-  have h3: ∑ (i: Fin (s + 1)), Polynomial.eval (((enumL hL_card).symm l):ℝ )
-      (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ • (descPochhammer ℝ (i: ℕ )
-      * (descPochhammer ℝ (s - (i:ℕ ))).comp ((k: Polynomial ℝ) - Polynomial.X)))
-      = ∑ (i: Fin (s + 1)), (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ ) •
-      (Polynomial.eval (((enumL hL_card).symm l):ℝ )
-      ((descPochhammer ℝ (i: ℕ )
-      * (descPochhammer ℝ (s - (i:ℕ ))).comp ((k: Polynomial ℝ) - Polynomial.X)))) := by
-    congr! 1 with x hx
-    rw [Polynomial.eval_smul]
-    rw [Polynomial.eval_smul]
-    rw [Polynomial.eval_smul]
-    rw [← smul_assoc]
-    rw [← smul_assoc]
-    rw [smul_assoc (v x) _ _]
-  rw [h3]
-  have h4: ∑ (i: Fin (s + 1)), (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ ) •
-    (Polynomial.eval (((enumL hL_card).symm l):ℝ )
-    ((descPochhammer ℝ (i: ℕ )
-    * (descPochhammer ℝ (s - (i:ℕ ))).comp ((k: Polynomial ℝ) - Polynomial.X))))
-    = ∑ (i: Fin (s + 1)), (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ ) •
-    ( (Polynomial.eval ((enumL hL_card).symm l:ℝ ) (descPochhammer ℝ (i: ℕ )))
-    * (Polynomial.eval (((enumL hL_card).symm l):ℝ ) ((descPochhammer ℝ (s - (i:ℕ ))).comp
-    ((k: Polynomial ℝ) - Polynomial.X)))) := by
-      congr! 1 with x hx
-      rw [Polynomial.eval_mul]
-  rw [h4]
-  have h5: ∑ (i: Fin (s + 1)), (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ ) •
-    ( (Polynomial.eval ((enumL hL_card).symm l:ℝ ) (descPochhammer ℝ (i: ℕ )))
-    * (Polynomial.eval (((enumL hL_card).symm l):ℝ ) ((descPochhammer ℝ (s - (i:ℕ ))).comp
-    ((k: Polynomial ℝ) - Polynomial.X))))
-    = ∑ (i: Fin (s + 1)), (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ ) •
-    ( (Nat.descFactorial ((enumL hL_card).symm l) (i: ℕ ))
-    * (Nat.descFactorial (k - ((enumL hL_card).symm l): ℕ) (s- (i: ℕ ))):ℝ) := by
-      congr! 1 with x hx
-      rw [descPochhammer_eval_eq_descFactorial]
-      rw [descPochhammer_comp_eval_eq_descFactorial_comp]
-      exact hrL
-  rw [h5]
-  have h6: ∑ (i: Fin (s + 1)), (v i • ((i: ℕ)!: ℝ )⁻¹ • ((s - (i: ℕ ) : ℕ )!:ℝ)⁻¹ ) •
-    ( (Nat.descFactorial ((enumL hL_card).symm l) (i: ℕ ))
-    * (Nat.descFactorial (k - ((enumL hL_card).symm l): ℕ) (s- (i: ℕ ))):ℝ) = ∑ x, (v x) •
-    ↑((((enumL hL_card).symm l): ℕ).descFactorial ↑x / (↑x)! *
-        ((k - ↑((enumL hL_card).symm l)).descFactorial (s - ↑x) / (s - ↑x)!)) :=by
-    exact sum_cast k s L hL_card  v
-  rw [h6]
-  rw [h1]
+  simp only [sum_apply, Pi.smul_apply, Pi.zero_apply, Nat.choose_eq_descFactorial_div_factorial] at h1
+  norm_cast at h1
+  simp_rw [sum_coe_poly', one_div, map_natCast, Algebra.smul_mul_assoc,
+    Polynomial.eval_finset_sum, Polynomial.eval_smul, ← smul_assoc,
+    fun (x: Fin (s + 1)) => smul_assoc (v x) ((x.val)!:ℝ)⁻¹ ((s - x.val)! : ℝ)⁻¹,
+    Polynomial.eval_mul, descPochhammer_eval_eq_descFactorial, fun (x: Fin (s + 1)) =>
+    descPochhammer_comp_eval_eq_descFactorial_comp k s L hL_card l x hrL]
+  rw [← h1]
+  exact sum_cast k s L hL_card  v
+
 
 lemma roots_card_le (v: Fin (s + 1) → ℝ) (hv: (∑ (i: Fin (s + 1)), v i • fun l ↦
     ((((enumL hL_card).symm l):ℕ ).choose (i: ℕ) : ℝ)
@@ -567,13 +418,12 @@ lemma roots_card_le (v: Fin (s + 1) → ℝ) (hv: (∑ (i: Fin (s + 1)), v i •
     unfold roots_set at hy
     simp only [top_eq_univ, mem_image, mem_univ, true_and] at hy
     cases' hy with x hx
-    simp only [one_div, map_natCast, Algebra.smul_mul_assoc, Multiset.mem_toFinset,
-      Polynomial.mem_roots', ne_eq, Polynomial.IsRoot.def]
+    simp only [Multiset.mem_toFinset, Polynomial.mem_roots', ne_eq, Polynomial.IsRoot.def]
     refine' ⟨h, ?_⟩
     rw [← hx, sum_coe_poly'_eval_zero _ _ _ _ hv hrL]
   exact card_le_card h1
 
-noncomputable def enumL_f : ℝ → Fin (s + 1) :=
+noncomputable abbrev enumL_f : ℝ → Fin (s + 1) :=
   fun x =>
     if hx : ∃ (l : L), (l : ℝ) = x then
       enumL hL_card (Classical.choose hx)
@@ -617,52 +467,14 @@ lemma card_roots_set_s_plus_1 : #(roots_set s L hL_card) = s+1 := by
     rw [hfin] at h1
     exact h1
 
-lemma fin_case_strong_induction_on {p : Fin (s + 1) → Prop} (a : Fin (s + 1)) (hz : p 0)
-    (hi : ∀ n < s, (∀ m, m ≤ n → p m) → p (n + 1)) : p a := by
-  let p' : ℕ → Prop := fun x => if x < s + 1 then p x else True
-  have hz' : p' 0 := by
-    unfold p'
-    exact if_true_right.mpr fun a ↦ hz
 
-  have hi' : ∀ (n : ℕ ), (∀ m, m ≤ n → p' m) → p' (n + 1) :=by
-    intro n hsucc
-    by_cases hns: n + 1 < s + 1
-    · unfold p'
-      rw [if_pos hns]
-      specialize hi n
-      unfold p' at hsucc
-      norm_cast at hi
-      apply hi
-      · exact succ_lt_succ_iff.mp hns
-      · intro m hm
-        specialize hsucc m hm
-        rw [if_pos (Nat.lt_trans (Order.lt_add_one_iff.mpr hm) hns )] at hsucc
-        norm_cast at hsucc
-    · unfold p'
-      rw [if_neg hns]
-      trivial
-  have htrue: p' a := Nat.case_strong_induction_on a hz' hi'
-  unfold p' at htrue
-  have ha : ↑a < s + 1 := a.is_lt
-  rw [if_pos ha] at htrue
-  norm_cast at htrue
 
-lemma Finset.card_le_sup_id_succ (L : Finset ℕ) : L.card ≤ (L.sup id) + 1 := by
-  have : L ⊆ Finset.range ((L.sup id) + 1) :=
-    fun x hx ↦ Finset.mem_range.2 ((Finset.le_sup (f := id) hx).trans_lt (Nat.lt_succ_self _))
-  convert Finset.card_mono this
-  simp only [card_range]
-
-lemma k_max (hkL: k ∈ L) (hrL: ∀(r:L), r≤k): k = (L.sup id) := by
-  have hsup_le : L.sup id ≤ k := Finset.sup_le fun x hx => hrL ⟨x, hx⟩
-  have hle_sup : id k ≤ L.sup id :=by exact Finset.le_sup hkL
-  exact Nat.le_antisymm hle_sup hsup_le
+lemma k_max (hkL: k ∈ L) (hrL: ∀(r:L), r≤k): k = (L.sup id) :=
+  Nat.le_antisymm (le_sup (f := id) hkL) (Finset.sup_le fun x hx => hrL ⟨x, hx⟩)
 
 lemma s_sub_one_le_k (hL_card : #L = s + 1) (hL: k∈L) (hrL: ∀(r:L), r≤k) (hs : 0 < s) :  s - 1 < k := by
   have h1 := Finset.card_le_sup_id_succ L
-  have h2:= k_max k L hL hrL
-  rw [← h2] at h1
-  rw [hL_card] at h1
+  rw [← (k_max k L hL hrL), hL_card] at h1
   omega
 
 lemma coef_zero (hL_card : #L = s + 1) (hL: k∈L) (hs : 0 < s) (hrL: ∀(r:L), r≤k) :
@@ -671,154 +483,122 @@ lemma coef_zero (hL_card : #L = s + 1) (hL: k∈L) (hs : 0 < s) (hrL: ∀(r:L), 
   intro hzero i
   --induction' i using Fin.induction with j hj
   let p: Fin (s + 1) → Prop := fun x => (v x = 0)
-
-
-  have hz: p (0: Fin (s+1)) := by
-    let f: Fin (s + 1) → ℝ := fun i => Polynomial.eval ((0: Fin (s + 1)): ℝ) (v i •
-    (real_choose_poly ↑i * (real_choose_poly (s - ↑i)).comp
-    ((k: Polynomial ℝ ) - Polynomial.X)))
+  apply fin_case_strong_induction_on i
+  · have hsk: ↑s - 1 < (k: ℝ ):= by
+      norm_cast
+      zify at h
+      rw [Nat.cast_sub hs] at h
+      exact h
+    --let f: Fin (s + 1) → ℝ := fun i => Polynomial.eval ((0: Fin (s + 1)): ℝ) (v i •
+    --(real_choose_poly ↑i * (real_choose_poly (s - ↑i)).comp
+    --((k: Polynomial ℝ ) - Polynomial.X)))
     have h0:= congrArg (Polynomial.eval ((0: Fin (s + 1)):ℝ)) hzero
     simp only [Polynomial.eval_zero] at h0
     unfold sum_coe_poly at h0
-    simp only [one_div, map_natCast, Algebra.smul_mul_assoc] at h0
-    rw [Polynomial.eval_finset_sum] at h0
-    have h₀ : ∀ (b : Fin (s + 1)), b ≠ 0 → f b = 0 :=by
-      intro x hx
-      unfold f
-      unfold real_choose_poly
-      simp only [Fin.val_zero, CharP.cast_eq_zero, one_div, Polynomial.smul_comp,
-        Algebra.mul_smul_comm, Algebra.smul_mul_assoc, Polynomial.eval_smul, Polynomial.eval_mul,
-        Polynomial.eval_comp, Polynomial.eval_sub, Polynomial.eval_natCast, Polynomial.eval_X,
-        sub_zero, smul_eq_mul, _root_.mul_eq_zero, inv_eq_zero, cast_eq_zero]
-      right
-      right
-      right
-      left
-      rw [descPochhammer_eval_zero]
-      rw [if_neg (Fin.val_ne_zero_iff.mpr hx)]
-    rw [Finset.sum_eq_single_of_mem (0: Fin (s + 1))] at h0
-    · unfold p
-      simp only [Fin.val_zero, CharP.cast_eq_zero, tsub_zero, Polynomial.eval_smul,
-        Polynomial.eval_mul, Polynomial.eval_comp, Polynomial.eval_sub, Polynomial.eval_natCast,
-        Polynomial.eval_X, sub_zero, smul_eq_mul, _root_.mul_eq_zero] at h0
-      cases' h0 with hp hp
-      · exact hp
-      · cases' hp with hp hp
-        · exfalso
-          unfold real_choose_poly at hp
-          simp only [factorial_zero, cast_one, ne_eq, one_ne_zero, not_false_eq_true, div_self,
-            descPochhammer_zero, one_smul, Polynomial.eval_one] at hp
-        · exfalso
-          unfold real_choose_poly at hp
-          simp only [one_div, Polynomial.eval_smul, smul_eq_mul, _root_.mul_eq_zero, inv_eq_zero,
-            cast_eq_zero] at hp
-          cases' hp with hp hp
-          · have hp':= Nat.factorial_pos s
-            rw [hp] at hp'
-            exact not_succ_le_zero 0 hp'
-          · have hsk: ↑s - 1 < (k: ℝ ):= by
-              norm_cast
-              zify at h
-              rw [Nat.cast_sub hs] at h
-              exact h
-            exfalso
-            have h1 := descPochhammer_pos hsk
-            rw [hp] at h1
-            exact (lt_self_iff_false 0).mp h1
-    · exact mem_univ 0
-    · unfold f at h₀
-      exact fun b a a ↦ h₀ b a
-
-  apply fin_case_strong_induction_on s i hz
-  intro j hjs hj
-  have hj1 : (j + 1 : Fin (s + 1)) = (j + 1 : ℕ) := by norm_cast
-  rw [hj1]
-  generalize hj₁ : j + 1 = j₁ at *
-  unfold p
-  have hjj : ((j₁ : Fin (s + 1)) : ℕ) = j₁ :=
-    (Fin.val_natCast _ _).trans (Nat.mod_eq_of_lt (by omega))
-  let f: Fin (s + 1) → ℝ := fun i => Polynomial.eval j₁ (v i • real_choose_poly i *
-    (real_choose_poly (s - i)).comp (Polynomial.C (k : ℝ ) - Polynomial.X))
-  have h₀ : ∀ (b : Fin (s + 1)), b ≠ (j + 1: Fin (s + 1)) → f b = 0 :=by
-    intro x hx
-    unfold f
-    unfold real_choose_poly
-    simp only [one_div, map_natCast, Polynomial.smul_comp, Algebra.mul_smul_comm,
-      Algebra.smul_mul_assoc, Polynomial.eval_smul, Polynomial.eval_mul, Polynomial.eval_comp,
-      Polynomial.eval_sub, Polynomial.eval_natCast, Polynomial.eval_X, smul_eq_mul,
-      _root_.mul_eq_zero, inv_eq_zero, cast_eq_zero]
-    by_cases hx': x > j + 1
-    · right
-      right
-      right
-      left
-      have hjs :  j₁ < x := by omega
-      exact descPochhammer_eval_coe_nat_of_lt hjs (R := ℝ)
-    · right
-      left
-      rw [hj1] at hx hx'
-      have hj1s: j₁ < s + 1 := by omega
-      have hx_nat: (x: ℕ ) ≠ j₁ := by
-        intro h
-        apply hx
-        rw [Fin.ext_iff]
-        rw [hjj]
-        exact h
-      have hx_nat': ¬(x: ℕ) > j₁ := by
-        intro h
-        apply hx'
-        simp only [gt_iff_lt] at h ⊢
-        rw [← hjj] at h
-        rw [Fin.lt_iff_val_lt_val]
-        exact h
-
-
-
-      have hxj: (x: ℕ ) < j₁ := by omega
-      have hxj': (x: ℕ ) ≤ j := by omega
-      specialize hj (x: ℕ ) hxj'
-      unfold p at hj
-      convert hj
-      simp only [Fin.cast_val_eq_self]
-
-  -- let f:= fun (i: Fin (s + 1)) => (v i • real_choose_poly ↑i * (real_choose_poly
-  -- (s - ↑i)).comp ((k: Polynomial ℝ ) - Polynomial.X))
-
-  -- have h₀ : ∀ (b : Fin (s + 1)), b ≠ (j + 1: Fin (s + 1)) → f b = 0 :=by sorry
-  have h0:= congrArg (Polynomial.eval (j₁ : ℝ)) hzero
-  simp only [Polynomial.eval_zero] at h0
-  unfold sum_coe_poly at h0
-  rw [Polynomial.eval_finset_sum] at h0
-  rw [Finset.sum_eq_single_of_mem (j₁ : Fin (s + 1))] at h0
-  · rw [Polynomial.eval_mul, Polynomial.eval_smul, real_choose_poly_eval_nat_choose] at h0
-    rw [Polynomial.eval_comp] at h0
-    simp only [cast_add, cast_one, smul_eq_mul, map_natCast, Polynomial.eval_sub,
-      Polynomial.eval_natCast, Polynomial.eval_X, _root_.mul_eq_zero, cast_eq_zero] at h0
-    rw [← Nat.cast_sub, real_choose_poly_eval_nat_choose] at h0
-    cases' h0 with hp hp
-    · cases' hp with hp hp
-      · exact hp
+    simp only [map_natCast, Algebra.smul_mul_assoc] at h0
+    rw [Polynomial.eval_finset_sum,
+      Finset.sum_eq_single_of_mem (0: Fin (s + 1)) (mem_univ 0)] at h0
+    · simp only [Fin.coe_ofNat_eq_mod, zero_mod, CharP.cast_eq_zero, tsub_zero,
+      Polynomial.eval_smul, Polynomial.eval_mul, Polynomial.eval_comp, Polynomial.eval_sub,
+      Polynomial.eval_natCast, Polynomial.eval_X, smul_eq_mul, _root_.mul_eq_zero] at h0
+      cases' h0 with h0 h0
+      · exact h0
       · exfalso
-        have h1:= Nat.choose_pos (Nat.le_refl j₁)
+        cases' h0 with h0 h0
+        · simp only [real_choose_poly , factorial_zero, cast_one, ne_eq, one_ne_zero,
+          not_false_eq_true, div_self, descPochhammer_zero, one_smul, Polynomial.eval_one] at h0
+        · unfold real_choose_poly at h0
+          simp only [one_div, Polynomial.eval_smul, smul_eq_mul, _root_.mul_eq_zero, inv_eq_zero,
+            cast_eq_zero] at h0
+          cases' h0 with h0 h0
+          · have h1:= Nat.factorial_pos s
+            rw [h0] at h1
+            exact not_succ_le_zero 0 h1
+          ·
+            have h1 := descPochhammer_pos hsk
+            rw [h0] at h1
+            exact (lt_self_iff_false 0).mp h1
+    · intro i hi' hi
+      simp only [Fin.coe_ofNat_eq_mod, zero_mod, CharP.cast_eq_zero, Polynomial.eval_smul,
+        Polynomial.eval_mul, Polynomial.eval_comp, Polynomial.eval_sub, Polynomial.eval_natCast,
+        Polynomial.eval_X, sub_zero, smul_eq_mul, _root_.mul_eq_zero]
+      right
+      left
+      unfold real_choose_poly
+      simp only [one_div, Polynomial.eval_smul, smul_eq_mul, _root_.mul_eq_zero, inv_eq_zero,
+        cast_eq_zero]
+      right
+      apply descPochhammer_ne_zero_eval_zero
+      exact Fin.val_ne_zero_iff.mpr hi
+  · intro j hjs hj
+    generalize hj₁ : j + 1 = j₁ at *
+    have hjj : (@Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1)) j₁ :ℕ) = j₁ :=by
+      simp only [Fin.val_natCast, mod_succ_eq_iff_lt, succ_eq_add_one]
+      rw [← hj₁]
+      omega
+    have h0:= congrArg (Polynomial.eval (j₁ : ℝ)) hzero
+    simp only [Polynomial.eval_zero] at h0
+    unfold sum_coe_poly at h0
+    rw [Polynomial.eval_finset_sum] at h0
+    rw [Finset.sum_eq_single_of_mem
+      (@Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1)) j₁)] at h0
+    · rw [Polynomial.eval_mul, Polynomial.eval_smul, real_choose_poly_eval_nat_choose] at h0
+      rw [Polynomial.eval_comp] at h0
+      simp only [smul_eq_mul, map_natCast, Polynomial.eval_sub,
+        Polynomial.eval_natCast, Polynomial.eval_X, _root_.mul_eq_zero, cast_eq_zero] at h0
+      rw [← Nat.cast_sub, real_choose_poly_eval_nat_choose] at h0
+      cases' h0 with hp hp
+      · cases' hp with hp hp
+        · exact hp
+        · exfalso
+          have h1:= Nat.choose_pos (Nat.le_refl j₁)
+          rw [hjj] at hp
+          rw [hp] at h1
+          exact not_succ_le_zero 0 h1
+      · exfalso
+        have hks : (s - j₁) ≤ (k - j₁) :=
+          by omega
+        have h1:= Nat.choose_pos hks
+        norm_cast at hp
         rw [hjj] at hp
         rw [hp] at h1
         exact not_succ_le_zero 0 h1
-    · exfalso
-      have hks : (s - j₁) ≤ (k - j₁) :=
-        by omega
-      have h1:= Nat.choose_pos hks
-      norm_cast at hp
-      rw [hjj] at hp
-      rw [hp] at h1
-      exact not_succ_le_zero 0 h1
-    · omega
+      · omega
+    · simp only [mem_univ]
+    · intro i hi' hi
+      simp only [map_natCast, Algebra.smul_mul_assoc, Polynomial.eval_smul, Polynomial.eval_mul,
+        Polynomial.eval_comp, Polynomial.eval_sub, Polynomial.eval_natCast, Polynomial.eval_X,
+        smul_eq_mul, _root_.mul_eq_zero]
+      have hii: @Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1)) i.val = i := by
+        simp only [Fin.cast_val_eq_self]
+      by_cases hij: i.val ≤ j
+      · specialize hj i hij
+        simp only [Fin.cast_val_eq_self] at hj
+        left
+        exact hj
+      · right
+        left
+        unfold real_choose_poly
+        simp only [one_div, Polynomial.eval_smul, smul_eq_mul, _root_.mul_eq_zero, inv_eq_zero,
+          cast_eq_zero]
+        right
+        apply descPochhammer_eval_coe_nat_of_lt
+        simp only [not_le] at hij
+        rw [← hj₁]
+        have hji : j + 1 ≠ i :=by
+          rw [← hii] at hi
+          rw [← hj₁] at hi
+          exact fun a ↦ hi (congrArg
+            (@Nat.cast (Fin (s + 1)) (Fin.NatCast.instNatCast (s + 1))) (id (Eq.symm a)))
+        omega
 
-  · simp only [mem_univ]
 
-  · unfold f at h₀
-    rw [hj1] at h₀
 
-    exact fun b a a ↦ h₀ b a
+
+
+
+
+
 
 variable (hrL: ∀(r:L), r≤k) (hs : 0 < s)
 
@@ -868,7 +648,7 @@ lemma span_G (hL_card : #L = s + 1) (hL: k∈L) (hrL: ∀(r:L), r≤k) (hs : 0 <
   apply Submodule.span_le.2
   intro H hH
   simp only [SetLike.mem_coe]
-  simp only [Set.mem_image, Set.mem_image, mem_coe, mem_powersetCard] at hH
+  simp only [Set.mem_image, Set.mem_image, mem_coe] at hH
   cases' hH with A hA
   rw [Submodule.span_iUnion]
   rw [@Submodule.mem_iSup_iff_exists_finset]
@@ -984,8 +764,7 @@ theorem span_G_F : Submodule.span ℝ (subset_G F s) ≤
   have hB : (fun B ↦ subset_indicator F C B) = (subset_indicator F C) := by
     funext B
     simp
-  rw [hB]
-  rw [@Submodule.mem_span]
+  rw [hB, @Submodule.mem_span]
   intro V hV
   have hCV: subset_indicator F C ∈ (fun S ↦ subset_indicator F S) '' (powersetCard s X)  := by
     simp only [Set.mem_image, mem_coe, mem_powersetCard]
