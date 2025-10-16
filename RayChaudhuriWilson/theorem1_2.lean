@@ -80,10 +80,6 @@ lemma natDegree_characteristicPoly₁_le: (characteristicPoly₁ s p μ).natDegr
       exact h'
 
 
-
-
-#check exists_binomial_basis_expansion s (characteristicPoly₁ s p μ) (natDegree_characteristicPoly₁_le s p μ)
-
 section Frankl_Wilson_mod
 open Finset
 variable {α : Type} [DecidableEq α]
@@ -92,31 +88,39 @@ variable (X : Finset α) (n s k: ℕ) (hs : s ≠ 0) [hX: Fact (#X = n)] (p : �
 variable (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
 variable (μ : Fin (s + 1) →  ZMod p) (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
 
-#check Rat.instIntCast
 
-/-
-def something (x : ℕ ) (i : Fin (s + 1)) (a : Fin (s + 1) → ZMod p): ZMod p :=
-  (Rat.ofInt (a i).val) * (Nat.choose x i : ℚ)
--/
--- →
+abbrev uniform_mod := ∀ (A : F), (#A.val.val : ZMod p) = (μ 0)
 
-def uniform_mod := ∀ (A : F), (#A.val.val : ZMod p) = (μ 0)
-
-def intersecting_mod:= ∀ (A B: F), (A ≠ B) → ∃ (i: Fin (s + 1)), (i ≥ 1) ∧
+abbrev intersecting_mod:= ∀ (A B: F), (A ≠ B) → ∃ (i: Fin (s + 1)), (i ≥ 1) ∧
   (#(A.val.val ∩ B.val.val): ZMod p) = μ i
 
-def μ_set: Finset (ZMod p) := { (n: ZMod p)| ∃ (A B : F), (#(A.val.val ∩ B.val.val):ZMod p) = n}
+abbrev μ_set: Finset (ZMod p) := { (n: ZMod p)| ∃ (A B : F), (#(A.val.val ∩ B.val.val):ZMod p) = n}
 
-def μ_set' : Finset (ZMod p) := {μ i | (i : Fin (s + 1))}
+abbrev μ_set' : Finset (ZMod p) := {μ i | (i : Fin (s + 1))}
+
+
+lemma card_μ_set (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j):
+  # {μ i | (i : Fin (s + 1))} = s + 1:= by
+  simp only [univ_filter_exists]
+  suffices #(image μ (univ : Finset (Fin (s + 1)))) = #(univ : Finset (Fin (s + 1))) by
+    rw [card_fin (s + 1)] at this
+    exact this
+  rw [Finset.card_image_iff]
+  unfold Set.InjOn
+  intro i hi j hj hμij
+  by_contra hij
+  specialize hμ i j
+  apply hμ
+  · exact hij
+  · exact hμij
 
 variable (h_card : #(μ_set X k p F) = s + 1) (hμ': μ_set' s p μ = (μ_set X k p F))
 
 
-def incidence_matrix (i j: ℕ) :Matrix (powersetCard i X) (powersetCard j X) ℚ :=
+abbrev incidence_matrix (i j: ℕ) :Matrix (powersetCard i X) (powersetCard j X) ℚ :=
   fun B => fun A => if B.val ⊆ A.val then 1 else 0
 
-
-def Gram_matrix (i j: ℕ) := (Matrix.transpose (incidence_matrix X i j))
+abbrev Gram_matrix (i j: ℕ) := (Matrix.transpose (incidence_matrix X i j))
   * (incidence_matrix X i j)
 
 lemma incidence_mul_subset (i: Fin (s + 1)) (B : { x // x ∈ powersetCard i X })
@@ -225,7 +229,8 @@ lemma characteristicPoly₁_eval_intersection_eq_zero
     (characteristicPoly₁ s p μ)) = 0 :=by
   unfold characteristicPoly₁; unfold intersecting_mod at hintersect
   specialize hintersect u v huv
-  have h : ∃ (i : Icc 1 s ), Int.cast (R:= ZMod p) (Polynomial.eval (Nat.cast (R:= ℤ) #(u.val.val ∩ v.val.val))
+  have h : ∃ (i : Icc 1 s ), Int.cast (R:= ZMod p)
+    (Polynomial.eval (Nat.cast (R:= ℤ) #(u.val.val ∩ v.val.val))
     ((Polynomial.X: Polynomial ℤ)- (Nat.cast (R := ℤ[X]) (μ (Fin.ofNat (s + 1) i)).val))) = 0 :=by
     cases' hintersect with i hi
     cases' hi with hl hr
@@ -338,7 +343,7 @@ lemma rank_minor_le_M (a : Fin (s + 1) → ZMod p): Matrix.rank (M_minor X s k p
   exact rank_submatrix_le' (gram_M X s k p a) (fun (u: F) => (u: powersetCard k X))
     (fun (v: F) => (v: powersetCard k X))
 
-def vector_space_on_N := Submodule.span ℚ (Set.range (incidence_matrix X s k).row)
+abbrev vector_space_on_N := Submodule.span ℚ (Set.range (incidence_matrix X s k).row)
 
 lemma card_incidence_matrix: #(Set.range (incidence_matrix X s k).row).toFinset
     ≤ (Nat.choose n s) := by
@@ -496,13 +501,15 @@ lemma det_M_neq_0 (μ : Fin (s + 1) →  ZMod p) (huniform_mod: uniform_mod X s 
 theorem Frankl_Wilson_mod
     (F: Finset (powersetCard k X)) [hF: Fact (Nonempty F)]
     (μ : Fin (s + 1) →  ZMod p)
-    (hs : s ≠ 0)
-    (h_card : #(μ_set X k p F) = s + 1) (hμ': μ_set' s p μ = (μ_set X k p F))
+    (hs : s ≠ 0) (hμ': μ_set' s p μ = (μ_set X k p F))
     (hμ : ∀ (i j : Fin (s + 1)), i ≠ j → μ i  ≠ μ j)
     (huniform_mod: uniform_mod X s k p F μ)
     (hintersect: intersecting_mod X s k p F μ): #F ≤ Nat.choose n s  := by
   obtain ⟨a, ha⟩ := det_M_neq_0 X s k p F μ huniform_mod hs hμ hintersect
   rw [← det_M_neq_0_rank_M_eq_card_F X s k p F a ha]
+  have h_card: #(μ_set X k p F) = s + 1 := by
+    rw [← hμ']
+    exact card_μ_set s p μ hμ
   exact le_trans (rank_minor_le_M X s k p F a) (le_trans
     (rank_M_leq_rank_V X s k p F a μ h_card hμ') (dim_V_leq_binom_n_s X n s k))
 
